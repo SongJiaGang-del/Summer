@@ -1,0 +1,891 @@
+import { reactive, computed, ref, watch, type Ref } from 'vue'
+import { hexToRgb, type RGB } from '@/utils/color.uts'
+import { tweenColor } from '@/composables/use-anim.uts'
+import { saveStr, saveNum, saveJson, loadStr, loadNum, loadInt, loadJson, K } from '@/utils/storage.uts'
+
+export type Song = {
+	title : string,
+	artist : string,
+	cover : string,
+	fallbackImage : string,
+	audioUrl : string,
+	moodId : string,
+	lyrics : string[]
+}
+
+export type Mood = {
+	id : string,
+	color : string,
+	bg : string,
+	icon : string
+}
+
+export type Category = {
+	id : string,
+	name : string,
+	image : string,
+	fallbackImage : string,
+	moodId : string,
+	desc : string
+}
+
+export type DnaItem = {
+	name : string,
+	percent : number,
+	color : string
+}
+
+export type Bottle = {
+	id : number,
+	message : string,
+	songTitle : string,
+	createdAt : number,
+	replies : string[]
+}
+
+export type NavItem = {
+	id : string,
+	name : string,
+	icon : string
+}
+
+export const navs : NavItem[] = [
+	{ id: 'p', name: '律动', icon: '♪' },
+	{ id: 'd', name: '发现', icon: '✦' },
+	{ id: 'i', name: '小岛', icon: '⌘' }
+]
+
+export const playlist : Song[] = [
+	{
+		title: '夏日清风',
+		artist: '意大利苏打',
+		cover: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
+		fallbackImage: '/static/images/fallback-sea.svg',
+		audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+		moodId: 'sea-salt',
+		lyrics: ['夏天的风缓缓吹过', '穿过薄荷味的午后', '冰镇苏打在杯中冒泡', '旋律带我潜入深蓝', '享受这一刻清凉', '让忧虑随潮汐远去', '心跳随波浪起伏', '夏天永不落幕', '每一刻都值得珍藏', '在这蔚蓝的季节里']
+	},
+	{
+		title: '蔚蓝海岸',
+		artist: '冲浪乐队',
+		cover: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=600&q=80',
+		fallbackImage: '/static/images/fallback-sea.svg',
+		audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+		moodId: 'sea-salt',
+		lyrics: ['追逐那抹永恒的蓝', '阳光是金色的外衣', '这一刻不需要终点', '我们都是自由的鱼', '咸咸的海水在指尖', '巨浪正在头顶翻滚']
+	},
+	{
+		title: '柠檬汽水',
+		artist: '海盐小队',
+		cover: 'https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?auto=format&fit=crop&w=600&q=80',
+		fallbackImage: '/static/images/fallback-sunset.svg',
+		audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+		moodId: 'strawberry',
+		lyrics: ['黄昏前最后一束光', '柠檬切片落入杯底', '气泡升起又破裂', '是我心跳的频率']
+	},
+	{
+		title: '深海潜行',
+		artist: 'Deep Blue',
+		cover: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?auto=format&fit=crop&w=600&q=80',
+		fallbackImage: '/static/images/fallback-mint.svg',
+		audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
+		moodId: 'mint',
+		lyrics: ['潜入更深的蓝', '听见鲸鱼的低吟', '光线在头顶舞蹈', '世界变得很安静']
+	}
+]
+
+export const moods : Mood[] = [
+	{ id: 'sea-salt', color: '#AEEFF0', bg: '#E0F7FA', icon: '🌊' },
+	{ id: 'strawberry', color: '#FF8577', bg: '#FFD1BB', icon: '🍓' },
+	{ id: 'mint', color: '#B2F2BB', bg: '#E8F5E9', icon: '🍃' }
+]
+
+export const categories : Category[] = [
+	{
+		id: 'beach-party',
+		name: '沙滩派对',
+		image: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=500&q=80',
+		fallbackImage: '/static/images/fallback-sea.svg',
+		moodId: 'sea-salt',
+		desc: '把海风、浪花和冰镇汽水混在一起，适合从第一首歌就进入夏天。'
+	},
+	{
+		id: 'rainforest-walk',
+		name: '雨林漫步',
+		image: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=500&q=80',
+		fallbackImage: '/static/images/fallback-mint.svg',
+		moodId: 'mint',
+		desc: '更轻、更绿、更安静的节奏，像在树影里慢慢降温。'
+	},
+	{
+		id: 'sunset-road',
+		name: '日落大道',
+		image: 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?auto=format&fit=crop&w=500&q=80',
+		fallbackImage: '/static/images/fallback-sunset.svg',
+		moodId: 'strawberry',
+		desc: '适合黄昏、晚霞和一点点心动，把今天的余温留在耳机里。'
+	}
+]
+
+function makeDefaultBottles() : Bottle[] {
+	return [
+		{ id: 1, message: '在长滩听了一夜的潮，希望你也能听见。', songTitle: '夏日清风', createdAt: 1716811200000, replies: [] as string[] },
+		{ id: 2, message: '柠檬汽水配《夏日清风》，这就是答案。', songTitle: '夏日清风', createdAt: 1716897600000, replies: [] as string[] },
+		{ id: 3, message: '想念去年那个一起追日落的人。', songTitle: '柠檬汽水', createdAt: 1716984000000, replies: [] as string[] },
+		{ id: 4, message: '每首歌都是一片新的海，跳进去吧。', songTitle: '蔚蓝海岸', createdAt: 1717070400000, replies: [] as string[] }
+	]
+}
+
+export const bottles = ref<Bottle[]> (loadJson<Bottle[]>(K.BOTTLES, makeDefaultBottles()))
+
+function normalizeBottle(b : Bottle) : Bottle {
+	const replies = b.replies == null ? [] as string[] : b.replies
+	const songTitle = b.songTitle == null || b.songTitle == '' ? '未知曲目' : b.songTitle
+	const createdAt = b.createdAt <= 0 ? Date.now() : b.createdAt
+	return {
+		id: b.id,
+		message: b.message,
+		songTitle: songTitle,
+		createdAt: createdAt,
+		replies: replies
+	}
+}
+
+function normalizeStoredBottles() {
+	const arr = bottles.value.map((b : Bottle) : Bottle => normalizeBottle(b))
+	bottles.value = arr
+	saveBottles()
+}
+
+function saveBottles() {
+	saveJson(K.BOTTLES, bottles.value)
+}
+
+normalizeStoredBottles()
+
+function normalizeBottleText(text : string) : string {
+	let value = text.trim()
+	if (value.length > 80) value = value.substring(0, 80)
+	return value
+}
+
+function nextBottleId() : number {
+	let maxId = 0
+	bottles.value.forEach((b : Bottle) => {
+		if (b.id > maxId) maxId = b.id
+	})
+	return maxId + 1
+}
+
+/* 启动时按时段推荐默认 mood，再被持久化覆盖 */
+function defaultMoodByTime() : string {
+	const h = new Date().getHours()
+	if (h >= 5 && h < 11) return 'sea-salt'    // 清晨
+	if (h >= 17 && h < 20) return 'strawberry' // 黄昏
+	if (h >= 20 || h < 5) return 'mint'        // 夜晚
+	return 'sea-salt'
+}
+
+export type PlayerState = {
+	isPlaying : boolean,
+	progress : number,         // 0-100
+	duration : number,         // 秒
+	volume : number,           // 0-1
+	moodId : string,
+	currentSongIndex : number,
+	activePageIndex : number,
+	activeBottle : Bottle | null,
+	audioLoading : boolean,
+	audioErrorMessage : string
+}
+
+export const state = reactive<PlayerState>({
+	isPlaying: false,
+	progress: 0,                // 启动不恢复进度，跟着音频实际位置走
+	duration: 0,
+	volume: loadNum(K.VOLUME, 0.7),
+	moodId: loadStr(K.MOOD, defaultMoodByTime()),
+	currentSongIndex: loadInt(K.SONG_INDEX, 0),
+	activePageIndex: 0,
+	activeBottle: null,
+	audioLoading: false,
+	audioErrorMessage: ''
+} as PlayerState)
+
+/** 最近播放历史（最多 30 条 song.title） */
+export const recents = ref<string[]> (loadJson<string[]>(K.RECENTS, [] as string[]))
+
+function pushRecent(title : string) {
+	const arr = recents.value.filter((t : string) : boolean => t != title)
+	arr.unshift(title)
+	if (arr.length > 30) arr.length = 30
+	recents.value = arr
+	saveJson(K.RECENTS, arr)
+}
+
+/* 防御：playlist 空数组或越界时返回占位歌曲 */
+const fallbackSong : Song = {
+	title: '未知曲目',
+	artist: '—',
+	cover: '',
+	fallbackImage: '/static/images/fallback-sea.svg',
+	audioUrl: '',
+	moodId: 'sea-salt',
+	lyrics: ['静待新的旋律']
+}
+
+export const currentSong = computed<Song> (() : Song => {
+	return safeGetSong(state.currentSongIndex)
+})
+
+export const currentLyricIndex = computed<number> (() : number => {
+	const total = currentSong.value.lyrics.length
+	if (total <= 0) return 0
+	const idx = Math.floor((state.progress / 100) * total)
+	return Math.min(idx, total - 1)
+})
+
+function safeGetSong(index : number) : Song {
+	if (playlist.length == 0) return fallbackSong
+	if (index < 0 || index >= playlist.length) return playlist[0]
+	return playlist[index]
+}
+
+function isValidSongIndex(index : number) : boolean {
+	return index >= 0 && index < playlist.length
+}
+
+/* ───── 真实数据流：播放统计 ─────
+ * totalPlaySeconds 累计有效播放时长（不计 seek 跳跃）
+ * moodCounts 按 mood id 累计 → 用于音乐画像计算
+ * uniqueSongs 收集听过的歌曲索引 → 用于"听过歌曲数"指标
+ */
+
+export type MoodCount = {
+	id : string,
+	seconds : number
+}
+
+export type PlayerStats = {
+	totalPlaySeconds : number,
+	moodCounts : MoodCount[],
+	uniqueSongs : number[]
+}
+
+function makeDefaultStats() : PlayerStats {
+	return {
+		totalPlaySeconds: 0,
+		moodCounts: [
+			{ id: 'sea-salt', seconds: 0 },
+			{ id: 'strawberry', seconds: 0 },
+			{ id: 'mint', seconds: 0 }
+		],
+		uniqueSongs: [] as number[]
+	} as PlayerStats
+}
+
+export const playerStats = ref<PlayerStats> (loadJson<PlayerStats>(K.STATS, makeDefaultStats()))
+
+let statsDirty = false
+let lastStatsSaveAt = 0
+function markStatsDirty() {
+	statsDirty = true
+	const now = Date.now()
+	if (now - lastStatsSaveAt > 30000) {
+		saveJson(K.STATS, playerStats.value)
+		lastStatsSaveAt = now
+		statsDirty = false
+	}
+}
+
+/** 累加 N 秒到 stats，按当前 mood 分配 */
+function accumulatePlay(seconds : number) {
+	if (seconds <= 0) return
+	const s = playerStats.value
+	s.totalPlaySeconds += seconds
+	const m = s.moodCounts.find((mc : MoodCount) : boolean => mc.id == state.moodId)
+	if (m != null) m!.seconds += seconds
+	// 触发响应式更新
+	playerStats.value = s
+	markStatsDirty()
+}
+
+function markSongListened(idx : number) {
+	const s = playerStats.value
+	if (!s.uniqueSongs.includes(idx)) {
+		s.uniqueSongs.push(idx)
+		playerStats.value = s
+		markStatsDirty()
+	}
+}
+
+/* ───── 派生 computed：等级 / 经验 / 音乐画像 ───── */
+
+/** 每 10 分钟（600 秒）一级，从 1 开始 */
+export const playerLevel = computed<number> (() : number => {
+	return Math.floor(playerStats.value.totalPlaySeconds / 600) + 1
+})
+
+/** 当前等级的经验进度，0-100 */
+export const levelExpPercent = computed<number> (() : number => {
+	const t = playerStats.value.totalPlaySeconds
+	return (t % 600) / 600 * 100
+})
+
+/** 等级头衔 */
+export const levelTitle = computed<string> (() : string => {
+	const lv = playerLevel.value
+	if (lv < 3) return '初探深海'
+	if (lv < 6) return '海盐巡游者'
+	if (lv < 12) return '日落追逐者'
+	if (lv < 20) return '深夜潜水员'
+	return '海洋之心'
+})
+
+/** 按 moodCounts 实时算音乐画像 */
+export const vibeDnasComputed = computed<DnaItem[]> (() : DnaItem[] => {
+	const arr = playerStats.value.moodCounts
+	let total = 0
+	arr.forEach((m : MoodCount) => { total += m.seconds })
+	const colors : string[] = ['#60A5FA', '#FB7185', '#4ADE80']
+	const names : string[] = ['海风流行', '日落珊瑚', '薄荷电子']
+	const result : DnaItem[] = []
+	for (let i = 0; i < 3; i++) {
+		const pct = total == 0 ? 0 : (arr[i].seconds / total) * 100
+		result.push({ name: names[i], percent: Math.round(pct), color: colors[i] })
+	}
+	return result
+})
+
+export const totalPlayMinutes = computed<number> (() : number => Math.floor(playerStats.value.totalPlaySeconds / 60))
+export const uniqueSongCount = computed<number> (() : number => playerStats.value.uniqueSongs.length)
+
+export const dominantMoodId = computed<string> (() : string => {
+	const arr = playerStats.value.moodCounts
+	let total = 0
+	let bestId = ''
+	let bestSeconds = -1
+	arr.forEach((m : MoodCount) => {
+		total += m.seconds
+		if (m.seconds > bestSeconds) {
+			bestSeconds = m.seconds
+			bestId = m.id
+		}
+	})
+	if (total <= 0) return state.moodId == '' ? defaultMoodByTime() : state.moodId
+	return bestId == '' ? state.moodId : bestId
+})
+
+function hasListenedSong(index : number) : boolean {
+	return playerStats.value.uniqueSongs.includes(index)
+}
+
+function pushSongIfMissing(list : Song[], song : Song) {
+	const exists = list.find((s : Song) : boolean => s.title == song.title && s.artist == song.artist)
+	if (exists == null) list.push(song)
+}
+
+export const personalizedPlaylist = computed<Song[]> (() : Song[] => {
+	const moodId = dominantMoodId.value
+	const result : Song[] = []
+	const listened : Song[] = []
+	playlist.forEach((song : Song, idx : number) => {
+		if (song.moodId != moodId) return
+		if (hasListenedSong(idx) && playlist.length > 3) {
+			listened.push(song)
+		} else {
+			pushSongIfMissing(result, song)
+		}
+	})
+	playlist.forEach((song : Song, idx : number) => {
+		if (song.moodId == moodId) return
+		if (hasListenedSong(idx) && playlist.length > 3) {
+			listened.push(song)
+		} else {
+			pushSongIfMissing(result, song)
+		}
+	})
+	listened.forEach((song : Song) => {
+		pushSongIfMissing(result, song)
+	})
+	return result
+})
+
+/* ───── 真实音频引擎 ─────
+ * uts 的 `any` 实际是 Kotlin Any? 不允许属性访问，需要类型化。
+ * 用 uni-app x 暴露的 InnerAudioContext 类型，可空指针。
+ */
+let audio : InnerAudioContext | null = null
+let audioInited = false
+let lastAudioTime = 0 // 用于累计有效播放时长（屏蔽 seek 跳跃）
+let audioErrorSkipCount = 0
+
+function ensureAudio() {
+	if (audioInited) return
+	audioInited = true
+	const ctx = uni.createInnerAudioContext()
+	ctx.volume = state.volume
+	ctx.autoplay = false
+
+	ctx.onCanplay(() => {
+		const d = ctx.duration
+		if (d > 0) state.duration = d
+		state.audioLoading = false
+		state.audioErrorMessage = ''
+	})
+
+	ctx.onTimeUpdate(() => {
+		const cur = ctx.currentTime
+		const dur = ctx.duration
+		if (dur > 0) {
+			state.duration = dur
+			state.progress = (cur / dur) * 100
+		}
+		// 累计有效时长（差值 < 2 秒视为正常播放，否则当 seek 跳过）
+		const diff = cur - lastAudioTime
+		if (diff > 0 && diff < 2) {
+			accumulatePlay(diff)
+		}
+		lastAudioTime = cur
+	})
+
+	ctx.onPlay(() => {
+		state.isPlaying = true
+		state.audioLoading = false
+		state.audioErrorMessage = ''
+		audioErrorSkipCount = 0
+	})
+	ctx.onPause(() => { state.isPlaying = false })
+	ctx.onStop(() => { state.isPlaying = false })
+
+	ctx.onEnded(() => {
+		state.progress = 0
+		nextSong()
+	})
+
+	ctx.onError(() => {
+		handleAudioError()
+	})
+
+	audio = ctx
+}
+
+function loadCurrentSong(autoplay : boolean) {
+	ensureAudio()
+	if (audio == null) return
+	const song = safeGetSong(state.currentSongIndex)
+	if (song.audioUrl == '') {
+		state.isPlaying = false
+		state.audioLoading = false
+		state.audioErrorMessage = '当前没有可播放的音频'
+		uni.showToast({ title: state.audioErrorMessage, icon: 'none' })
+		return
+	}
+	audio!.src = song.audioUrl
+	state.progress = 0
+	state.duration = 0
+	state.audioErrorMessage = ''
+	state.audioLoading = autoplay
+	lastAudioTime = 0
+	if (isValidSongIndex(state.currentSongIndex)) {
+		markSongListened(state.currentSongIndex)
+	}
+	if (autoplay) {
+		audio!.play()
+	}
+}
+
+function handleAudioError() {
+	state.isPlaying = false
+	state.audioLoading = false
+	state.audioErrorMessage = '当前音频加载失败'
+	if (playlist.length <= 1 || audioErrorSkipCount >= playlist.length - 1) {
+		audioErrorSkipCount = 0
+		uni.showToast({ title: '音频加载失败，请稍后再试', icon: 'none' })
+		return
+	}
+	audioErrorSkipCount++
+	uni.showToast({ title: '当前音频加载失败，已为你跳到下一首', icon: 'none' })
+	nextSong()
+}
+
+export function togglePlay() {
+	ensureAudio()
+	if (audio == null) return
+	if (playlist.length == 0) {
+		state.audioErrorMessage = '暂无可播放歌曲'
+		uni.showToast({ title: state.audioErrorMessage, icon: 'none' })
+		return
+	}
+	const src = audio!.src
+	if (src == '') {
+		loadCurrentSong(true)
+		return
+	}
+	if (src != currentSong.value.audioUrl) {
+		loadCurrentSong(true)
+		return
+	}
+	if (state.isPlaying) {
+		audio!.pause()
+	} else {
+		audio!.play()
+	}
+}
+
+/** 当前背景色（RGB ref），由 mood 切换驱动，平滑过渡 */
+const initialMood = moods.find((m : Mood) : boolean => m.id == state.moodId)
+export const bgColor : Ref<RGB> = ref(hexToRgb(initialMood == null ? moods[0].bg : initialMood!.bg))
+
+export function setMood(id : string) {
+	const next = moods.find((m : Mood) : boolean => m.id == id)
+	if (next == null) return
+	state.moodId = id
+	tweenColor(bgColor, next!.bg, 800)
+	saveStr(K.MOOD, id)
+}
+
+export function playSong(index : number) {
+	if (!isValidSongIndex(index)) {
+		state.audioErrorMessage = '歌曲不存在'
+		uni.showToast({ title: state.audioErrorMessage, icon: 'none' })
+		return
+	}
+	audioErrorSkipCount = 0
+	state.currentSongIndex = index
+	state.activePageIndex = 0
+	saveNum(K.SONG_INDEX, index)
+	pushRecent(playlist[index].title)
+	loadCurrentSong(true)
+}
+
+export function nextSong() {
+	if (playlist.length == 0) {
+		state.isPlaying = false
+		state.audioLoading = false
+		state.audioErrorMessage = '暂无可播放歌曲'
+		uni.showToast({ title: state.audioErrorMessage, icon: 'none' })
+		return
+	}
+	state.currentSongIndex = (state.currentSongIndex + 1) % playlist.length
+	saveNum(K.SONG_INDEX, state.currentSongIndex)
+	pushRecent(playlist[state.currentSongIndex].title)
+	loadCurrentSong(true)
+}
+
+export function prevSong() {
+	if (playlist.length == 0) {
+		state.isPlaying = false
+		state.audioLoading = false
+		state.audioErrorMessage = '暂无可播放歌曲'
+		uni.showToast({ title: state.audioErrorMessage, icon: 'none' })
+		return
+	}
+	state.currentSongIndex = (state.currentSongIndex - 1 + playlist.length) % playlist.length
+	saveNum(K.SONG_INDEX, state.currentSongIndex)
+	pushRecent(playlist[state.currentSongIndex].title)
+	loadCurrentSong(true)
+}
+
+export function setVolume(v : number) {
+	let vv = v
+	if (vv < 0) vv = 0
+	if (vv > 1) vv = 1
+	state.volume = vv
+	if (audio != null) audio!.volume = vv
+	saveNum(K.VOLUME, vv)
+}
+
+/** percent 0-100，立即同步到 audio.currentTime */
+export function seekTo(percent : number) {
+	let p = percent
+	if (p < 0) p = 0
+	if (p > 100) p = 100
+	state.progress = p
+	if (audio != null && state.duration > 0 && currentSong.value.audioUrl != '') {
+		audio!.seek((p / 100) * state.duration)
+	}
+}
+
+/** progress-bar 拖拽时调用：仅本地显示进度，不调 audio.seek */
+export function previewSeek(percent : number) {
+	let p = percent
+	if (p < 0) p = 0
+	if (p > 100) p = 100
+	state.progress = p
+}
+
+/** 拖拽开始：记录原 isPlaying 并暂停 */
+let dragWasPlaying = false
+export function beginSeekDrag() {
+	if (audio == null) return
+	dragWasPlaying = state.isPlaying
+	if (dragWasPlaying) audio!.pause()
+}
+
+/** 拖拽结束：commit 到 audio，恢复之前的播放状态 */
+export function endSeekDrag() {
+	if (audio == null || state.duration <= 0) return
+	if (currentSong.value.audioUrl == '') return
+	audio!.seek((state.progress / 100) * state.duration)
+	if (dragWasPlaying && currentSong.value.audioUrl != '') audio!.play()
+}
+
+export function seekToLyric(index : number) {
+	const total = currentSong.value.lyrics.length
+	if (total <= 0) return
+	seekTo((index / total) * 100)
+}
+
+export function addBottle(message : string) : boolean {
+	const text = normalizeBottleText(message)
+	if (text == '') {
+		uni.showToast({ title: '先写点想说的话吧', icon: 'none' })
+		return false
+	}
+	const bottle : Bottle = {
+		id: nextBottleId(),
+		message: text,
+		songTitle: currentSong.value.title,
+		createdAt: Date.now(),
+		replies: [] as string[]
+	}
+	const arr = bottles.value.slice()
+	arr.unshift(bottle)
+	bottles.value = arr
+	saveBottles()
+	uni.showToast({ title: '漂流瓶已投出', icon: 'none' })
+	return true
+}
+
+export function addBottleReply(id : number, reply : string) : boolean {
+	const text = normalizeBottleText(reply)
+	if (text == '') {
+		uni.showToast({ title: '先写一封回信吧', icon: 'none' })
+		return false
+	}
+	let updated = false
+	const arr = bottles.value.map((b : Bottle) : Bottle => {
+		if (b.id != id) return b
+		updated = true
+		const nextReplies = b.replies.slice()
+		nextReplies.push(text)
+		return {
+			id: b.id,
+			message: b.message,
+			songTitle: b.songTitle,
+			createdAt: b.createdAt,
+			replies: nextReplies
+		}
+	})
+	if (!updated) return false
+	bottles.value = arr
+	saveBottles()
+	const active = state.activeBottle
+	if (active != null && active!.id == id) {
+		const latest = bottles.value.find((b : Bottle) : boolean => b.id == id)
+		if (latest != null) state.activeBottle = latest!
+	}
+	uni.showToast({ title: '回信已送达', icon: 'none' })
+	return true
+}
+
+export function openBottle(b : Bottle) {
+	state.activeBottle = b
+}
+
+export function closeBottle() {
+	state.activeBottle = null
+}
+
+/* ───── 白噪音混音器 ───── */
+export type AmbientTrack = {
+	id : string,
+	name : string,
+	icon : string,
+	audioUrl : string,
+	on : boolean,
+	volume : number,
+	loading : boolean,
+	error : boolean
+}
+
+export type AmbientPrefs = {
+	id : string,
+	on : boolean,
+	volume : number
+}
+
+const defaultAmbients : AmbientTrack[] = [
+	{ id: 'wave',   name: '海浪', icon: '🌊', audioUrl: '/static/audio/wave.wav',   on: false, volume: 0.45, loading: false, error: false },
+	{ id: 'cicada', name: '夏蝉', icon: '☀', audioUrl: '/static/audio/cicada.wav', on: false, volume: 0.35, loading: false, error: false },
+	{ id: 'rain',   name: '微雨', icon: '☂', audioUrl: '/static/audio/rain.wav',   on: false, volume: 0.38, loading: false, error: false }
+]
+
+function makeInitialAmbients() : AmbientTrack[] {
+	const saved = loadJson<AmbientPrefs[]>(K.AMBIENTS, [] as AmbientPrefs[])
+	return defaultAmbients.map((track : AmbientTrack) : AmbientTrack => {
+		const pref = saved.find((p : AmbientPrefs) : boolean => p.id == track.id)
+		if (pref == null) return track
+		return {
+			id: track.id,
+			name: track.name,
+			icon: track.icon,
+			audioUrl: track.audioUrl,
+			on: pref!.on,
+			volume: pref!.volume,
+			loading: false,
+			error: false
+		}
+	})
+}
+
+export const ambients = ref<AmbientTrack[]> (makeInitialAmbients())
+
+const ambientContexts : Map<string, InnerAudioContext> = new Map()
+
+function saveAmbientPrefs() {
+	const prefs : AmbientPrefs[] = ambients.value.map((track : AmbientTrack) : AmbientPrefs => {
+		return { id: track.id, on: track.on, volume: track.volume }
+	})
+	saveJson(K.AMBIENTS, prefs)
+}
+
+function updateAmbient(id : string, patch : AmbientTrack) {
+	ambients.value = ambients.value.map((track : AmbientTrack) : AmbientTrack => {
+		return track.id == id ? patch : track
+	})
+}
+
+function findAmbient(id : string) : AmbientTrack | null {
+	const found = ambients.value.find((track : AmbientTrack) : boolean => track.id == id)
+	return found == null ? null : found!
+}
+
+function ensureAmbientAudio(track : AmbientTrack) : InnerAudioContext {
+	const existing = ambientContexts.get(track.id)
+	if (existing != null) return existing!
+	const ctx = uni.createInnerAudioContext()
+	ctx.src = track.audioUrl
+	ctx.loop = true
+	ctx.autoplay = false
+	ctx.volume = track.volume
+	ctx.onPlay(() => {
+		const latest = findAmbient(track.id)
+		if (latest == null) return
+		updateAmbient(track.id, {
+			id: latest!.id,
+			name: latest!.name,
+			icon: latest!.icon,
+			audioUrl: latest!.audioUrl,
+			on: true,
+			volume: latest!.volume,
+			loading: false,
+			error: false
+		})
+	})
+	ctx.onCanplay(() => {
+		const latest = findAmbient(track.id)
+		if (latest == null) return
+		updateAmbient(track.id, {
+			id: latest!.id,
+			name: latest!.name,
+			icon: latest!.icon,
+			audioUrl: latest!.audioUrl,
+			on: latest!.on,
+			volume: latest!.volume,
+			loading: false,
+			error: false
+		})
+	})
+	ctx.onError(() => {
+		const latest = findAmbient(track.id)
+		if (latest == null) return
+		updateAmbient(track.id, {
+			id: latest!.id,
+			name: latest!.name,
+			icon: latest!.icon,
+			audioUrl: latest!.audioUrl,
+			on: false,
+			volume: latest!.volume,
+			loading: false,
+			error: true
+		})
+		saveAmbientPrefs()
+		uni.showToast({ title: latest!.name + '加载失败', icon: 'none' })
+	})
+	ambientContexts.set(track.id, ctx)
+	return ctx
+}
+
+export const showMixer = ref(false)
+
+export function toggleMixer() {
+	showMixer.value = !showMixer.value
+}
+
+export function toggleAmbient(id : string) {
+	const track = findAmbient(id)
+	if (track == null) return
+	const nextOn = !track!.on
+	const nextTrack : AmbientTrack = {
+		id: track!.id,
+		name: track!.name,
+		icon: track!.icon,
+		audioUrl: track!.audioUrl,
+		on: nextOn,
+		volume: track!.volume,
+		loading: nextOn,
+		error: false
+	}
+	updateAmbient(id, nextTrack)
+	const ctx = ensureAmbientAudio(nextTrack)
+	ctx.volume = nextTrack.volume
+	if (nextOn) {
+		ctx.play()
+	} else {
+		ctx.pause()
+		updateAmbient(id, {
+			id: nextTrack.id,
+			name: nextTrack.name,
+			icon: nextTrack.icon,
+			audioUrl: nextTrack.audioUrl,
+			on: false,
+			volume: nextTrack.volume,
+			loading: false,
+			error: false
+		})
+	}
+	saveAmbientPrefs()
+}
+
+export function setAmbientVolume(id : string, volume : number) {
+	const track = findAmbient(id)
+	if (track == null) return
+	let v = volume
+	if (v < 0) v = 0
+	if (v > 1) v = 1
+	const nextTrack : AmbientTrack = {
+		id: track!.id,
+		name: track!.name,
+		icon: track!.icon,
+		audioUrl: track!.audioUrl,
+		on: track!.on,
+		volume: v,
+		loading: track!.loading,
+		error: track!.error
+	}
+	updateAmbient(id, nextTrack)
+	const ctx = ambientContexts.get(id)
+	if (ctx != null) ctx!.volume = v
+	saveAmbientPrefs()
+}
+
+export function resumeActiveAmbients() {
+	ambients.value.forEach((track : AmbientTrack) => {
+		if (!track.on) return
+		const ctx = ensureAmbientAudio(track)
+		ctx.volume = track.volume
+		ctx.play()
+	})
+}

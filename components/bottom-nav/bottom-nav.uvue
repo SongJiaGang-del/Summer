@@ -1,0 +1,87 @@
+<template>
+	<glass-panel rounded="r-sheet" variant="medium" pad="p-none">
+		<view class="nav">
+			<!-- 浮动指示器：根据 active 位移 -->
+			<view class="indicator" :style="indicatorStyle"></view>
+			<view
+				v-for="(item, idx) in items"
+				:key="item.id"
+				class="tab"
+				@click="onTap(idx)">
+				<text class="icon" :class="{ active: idx == active }">{{ item.icon }}</text>
+				<text class="name" :class="{ active: idx == active }">{{ item.name }}</text>
+			</view>
+		</view>
+	</glass-panel>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, watch } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+	import { tapHaptic } from '@/utils/haptic.uts'
+	import { type NavItem } from '@/store/player.uts'
+
+	const props = defineProps({
+		items: { type: Array as PropType<NavItem[]>, required: true },
+		active: { type: Number, default: 0 }
+	})
+	const emit = defineEmits(['change'])
+
+	/* 指示器 X 位置以 tab 等宽分布，宽度按 100/N% 计算 */
+	const indicatorX = ref(0)
+	const tabWidthPct = computed<number>(() : number => 100 / props.items.length)
+
+	const indicatorStyle = computed<string>(() : string => {
+		return 'left:' + indicatorX.value + '%;width:' + tabWidthPct.value + '%'
+	})
+
+	watch(() : number => props.active, (idx : number) => {
+		tweenRef(indicatorX, idx * tabWidthPct.value, {
+			duration: 300, ease: Ease.inOutQuad, onComplete: null
+		})
+	})
+
+	function onTap(idx : number) {
+		tapHaptic()
+		emit('change', idx)
+	}
+</script>
+
+<style>
+	.nav {
+		flex-direction: row;
+		justify-content: space-around;
+		padding-top: 18px;
+		padding-bottom: 22px;
+		padding-left: 28px;
+		padding-right: 28px;
+		position: relative;
+	}
+	.indicator {
+		position: absolute;
+		top: 6px;
+		height: 4px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.55);
+		margin-left: 24px;
+		margin-right: 24px;
+	}
+	.tab {
+		flex-direction: column;
+		align-items: center;
+	}
+	.icon {
+		font-size: 22px;
+		color: rgba(27, 73, 101, 0.20);
+	}
+	.icon.active { color: #1B4965; }
+	.name {
+		font-size: 9px;
+		font-weight: bold;
+		color: rgba(27, 73, 101, 0.20);
+		letter-spacing: 2px;
+		margin-top: 4px;
+	}
+	.name.active { color: #1B4965; }
+</style>

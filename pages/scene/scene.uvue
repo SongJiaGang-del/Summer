@@ -1,0 +1,274 @@
+<template>
+	<view class="scene-page" :style="pageStyle">
+		<view class="status-bar" :style="statusBarStyle"></view>
+
+		<view class="topbar">
+			<view class="back-btn" @click="onBack">
+				<text class="back-icon">‹</text>
+			</view>
+			<text class="top-title">场景歌单</text>
+			<view class="top-spacer"></view>
+		</view>
+
+		<scroll-view class="content" :scroll-y="true">
+			<view v-if="sceneFound" class="hero">
+				<view class="hero-image">
+					<image-fallback :src="scene.image" :fallbackSrc="scene.fallbackImage" mode="aspectFill"></image-fallback>
+				</view>
+				<view class="hero-shade"></view>
+				<view class="hero-copy">
+					<text class="scene-name">{{ scene.name }}</text>
+					<text class="scene-desc">{{ scene.desc }}</text>
+				</view>
+			</view>
+
+			<view v-else class="missing">
+				<text class="missing-title">这扇传送门暂时走丢了</text>
+				<text class="missing-desc">返回发现页，换一个场景试试看。</text>
+			</view>
+
+			<view v-if="sceneFound" class="songs-section">
+				<text class="section-title">为这个场景漂来的歌</text>
+				<view v-if="sceneSongs.length > 0" class="grid">
+					<album-card
+						v-for="(song, idx) in sceneSongs"
+						:key="song.title"
+						:title="song.title"
+						:artist="song.artist"
+						:cover="song.cover"
+						v-bind:fallback-image="song.fallbackImage"
+						v-bind:delay="120 + idx * 80"
+						@play="onPlaySceneSong(song)">
+					</album-card>
+				</view>
+				<view v-else class="empty">
+					<text class="empty-title">这个场景还没有歌</text>
+					<text class="empty-desc">先回发现页听一首为你漂来的歌吧。</text>
+				</view>
+			</view>
+		</scroll-view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, onMounted } from 'vue'
+	import { onLoad } from '@dcloudio/uni-app'
+	import {
+		categories, playlist, setMood, playSong,
+		type Category, type Song
+	} from '@/store/player.uts'
+	import { hexToRgb, rgbToCss } from '@/utils/color.uts'
+
+	const sceneId = ref('')
+	const statusBarH = ref(0)
+	const statusBarStyle = computed<string>(() : string => 'height:' + statusBarH.value + 'px')
+
+	const fallbackScene : Category = {
+		id: '',
+		name: '未知场景',
+		image: '',
+		fallbackImage: '/static/images/fallback-sea.svg',
+		moodId: 'sea-salt',
+		desc: ''
+	}
+
+	const scene = computed<Category>(() : Category => {
+		const found = categories.find((cat : Category) : boolean => cat.id == sceneId.value)
+		return found != null ? found! : fallbackScene
+	})
+
+	const sceneFound = computed<boolean>(() : boolean => {
+		return categories.find((cat : Category) : boolean => cat.id == sceneId.value) != null
+	})
+
+	const pageStyle = computed<string>(() : string => {
+		const mood = scene.value.moodId
+		if (mood == 'strawberry') return 'background-color:' + rgbToCss(hexToRgb('#FFD1BB'))
+		if (mood == 'mint') return 'background-color:' + rgbToCss(hexToRgb('#E8F5E9'))
+		return 'background-color:' + rgbToCss(hexToRgb('#E0F7FA'))
+	})
+
+	function pushSceneSong(list : Song[], song : Song) {
+		const exists = list.find((s : Song) : boolean => s.title == song.title && s.artist == song.artist)
+		if (exists == null) list.push(song)
+	}
+
+	function getSongsForScene(cat : Category) : Song[] {
+		const result : Song[] = []
+		playlist.forEach((song : Song) => {
+			if (song.moodId == cat.moodId) pushSceneSong(result, song)
+		})
+		if (result.length == 0) return playlist
+		return result
+	}
+
+	const sceneSongs = computed<Song[]>(() : Song[] => {
+		return getSongsForScene(scene.value)
+	})
+
+	function findSongIndex(song : Song) : number {
+		for (let i = 0; i < playlist.length; i++) {
+			const s = playlist[i]
+			if (s.title == song.title && s.artist == song.artist) return i
+		}
+		return -1
+	}
+
+	function goBackToIndex() {
+		uni.navigateBack({
+			fail: () => {
+				uni.redirectTo({ url: '/pages/index/index' })
+			}
+		})
+	}
+
+	function onPlaySceneSong(song : Song) {
+		const idx = findSongIndex(song)
+		if (idx < 0) return
+		playSong(idx)
+		goBackToIndex()
+	}
+
+	function onBack() {
+		goBackToIndex()
+	}
+
+	onMounted(() => {
+		const info = uni.getSystemInfoSync()
+		statusBarH.value = info.statusBarHeight as number
+	})
+
+	onLoad((query : OnLoadOptions) => {
+		const id = query['sceneId'] as string | null
+		if (id != null) {
+			sceneId.value = id!
+			const found = categories.find((cat : Category) : boolean => cat.id == sceneId.value)
+			if (found != null) setMood(found!.moodId)
+		}
+	})
+</script>
+
+<style>
+	.scene-page {
+		flex: 1;
+		flex-direction: column;
+	}
+	.topbar {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		padding-left: 20px;
+		padding-right: 20px;
+		padding-top: 12px;
+		padding-bottom: 16px;
+	}
+	.back-btn {
+		width: 40px;
+		height: 40px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.34);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.46);
+		align-items: center;
+		justify-content: center;
+	}
+	.back-icon {
+		font-size: 28px;
+		color: #1B4965;
+		font-weight: bold;
+		line-height: 28px;
+	}
+	.top-title {
+		font-size: 16px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 3px;
+	}
+	.top-spacer {
+		width: 40px;
+		height: 40px;
+	}
+	.content {
+		flex: 1;
+	}
+	.hero {
+		height: 620rpx;
+		margin-left: 24px;
+		margin-right: 24px;
+		border-radius: 48px;
+		overflow: hidden;
+		position: relative;
+	}
+	.hero-image {
+		width: 100%;
+		height: 100%;
+	}
+	.hero-shade {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 70%;
+		background-color: rgba(0, 0, 0, 0.42);
+	}
+	.hero-copy {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		padding: 28px;
+	}
+	.scene-name {
+		font-size: 28px;
+		font-weight: bold;
+		color: #ffffff;
+		letter-spacing: 4px;
+	}
+	.scene-desc {
+		font-size: 12px;
+		color: rgba(255, 255, 255, 0.76);
+		line-height: 22px;
+		margin-top: 12px;
+	}
+	.songs-section {
+		padding-left: 24px;
+		padding-right: 24px;
+		padding-top: 28px;
+		padding-bottom: 220px;
+	}
+	.section-title {
+		font-size: 12px;
+		font-weight: bold;
+		color: rgba(27, 73, 101, 0.55);
+		letter-spacing: 2px;
+		margin-bottom: 14px;
+	}
+	.grid {
+		flex-direction: row;
+		flex-wrap: wrap;
+		justify-content: space-between;
+	}
+	.missing,
+	.empty {
+		margin: 24px;
+		padding: 32px;
+		border-radius: 36px;
+		background-color: rgba(255, 255, 255, 0.28);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.42);
+		align-items: center;
+	}
+	.missing-title,
+	.empty-title {
+		font-size: 15px;
+		font-weight: bold;
+		color: #1B4965;
+	}
+	.missing-desc,
+	.empty-desc {
+		font-size: 11px;
+		color: rgba(27, 73, 101, 0.48);
+		margin-top: 8px;
+		line-height: 18px;
+	}
+</style>

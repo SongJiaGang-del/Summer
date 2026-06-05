@@ -1,0 +1,57 @@
+<template>
+	<view class="card" @click="$emit('enter')">
+		<view class="bg">
+			<image-fallback :src="image" :fallbackSrc="fallbackImage" mode="aspectFill"></image-fallback>
+		</view>
+		<view class="shade"></view>
+		<view class="content">
+			<text class="name">{{ name }}</text>
+			<text class="portal">查看歌单</text>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	defineProps({
+		name: { type: String, required: true },
+		image: { type: String, required: true },
+		fallbackImage: { type: String, default: '' }
+	})
+	defineEmits(['enter'])
+</script>
+
+<style>
+	.card {
+		width: 416rpx;
+		height: 576rpx;
+		border-radius: 64px;
+		overflow: hidden;
+		margin-right: 24px;
+		position: relative;
+	}
+	.bg { width: 100%; height: 100%; }
+	.shade {
+		position: absolute;
+		left: 0; right: 0; bottom: 0;
+		height: 60%;
+		background-color: rgba(0, 0, 0, 0.45);
+	}
+	.content {
+		position: absolute;
+		left: 0; right: 0; bottom: 0;
+		padding: 24px;
+	}
+	.name {
+		color: #ffffff;
+		font-size: 14px;
+		font-weight: bold;
+		letter-spacing: 4px;
+	}
+	.portal {
+		color: rgba(255, 255, 255, 0.55);
+		font-size: 9px;
+		font-weight: bold;
+		margin-top: 8px;
+		letter-spacing: 2px;
+	}
+</style>

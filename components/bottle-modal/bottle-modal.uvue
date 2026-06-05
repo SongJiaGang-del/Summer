@@ -1,0 +1,245 @@
+<template>
+	<view v-if="rendered" class="mask" :style="maskStyle" @click="onClose">
+		<view class="card" :style="cardStyle" @click.stop="noop">
+			<text class="emoji" :style="emojiStyle">🍾</text>
+			<text class="msg" :style="msgStyle">"{{ bottleText }}"</text>
+			<text class="song" :style="msgStyle">漂来时正在听：《{{ songTitle }}》</text>
+			<view v-if="replyCount > 0" class="replies" :style="msgStyle">
+				<text class="reply-title">回信 {{ replyCount }}</text>
+				<text v-for="(reply, idx) in replies" :key="idx" class="reply-text">- {{ reply }}</text>
+			</view>
+			<view v-if="replying" class="reply-box" :style="msgStyle">
+				<textarea
+					class="reply-input"
+					v-model="replyDraft"
+					maxlength="80"
+					placeholder="写一封 80 字以内的回信..."
+					placeholder-class="reply-placeholder" />
+			</view>
+			<view class="actions" :style="btnStyle">
+				<view class="btn secondary" @click="onClose">
+					<text class="secondary-text">知道了</text>
+				</view>
+				<view class="btn primary" @click="onReplyAction">
+					<text class="primary-text">{{ replying ? '送出' : '回信' }}</text>
+				</view>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, watch } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+	import { addBottleReply, type Bottle } from '@/store/player.uts'
+
+	const props = defineProps({
+		visible: { type: Boolean, default: false },
+		bottle: { type: Object as PropType<Bottle | null>, default: null }
+	})
+	const emit = defineEmits(['close'])
+
+	const rendered = ref(false)
+	const maskOpacity = ref(0)
+	const cardScale = ref(0.7)
+	const cardY = ref(40)
+	const emojiOpacity = ref(0)
+	const emojiRot = ref(-25)
+	const emojiScale = ref(0)
+	const msgOpacity = ref(0)
+	const msgY = ref(10)
+	const btnOpacity = ref(0)
+	const btnY = ref(30)
+	const replying = ref(false)
+	const replyDraft = ref('')
+
+	const maskStyle  = computed<string>(() : string => 'opacity:' + maskOpacity.value)
+	const cardStyle  = computed<string>(() : string => 'transform: translateY(' + cardY.value + 'px) scale(' + cardScale.value + ')')
+	const emojiStyle = computed<string>(() : string => 'opacity:' + emojiOpacity.value + ';transform: rotate(' + emojiRot.value + 'deg) scale(' + emojiScale.value + ')')
+	const msgStyle   = computed<string>(() : string => 'opacity:' + msgOpacity.value + ';transform: translateY(' + msgY.value + 'px)')
+	const btnStyle   = computed<string>(() : string => 'opacity:' + btnOpacity.value + ';transform: translateY(' + btnY.value + 'px)')
+	const bottleText = computed<string>(() : string => props.bottle == null ? '' : props.bottle!.message)
+	const songTitle = computed<string>(() : string => props.bottle == null ? '未知曲目' : props.bottle!.songTitle)
+	const replies = computed<string[]>(() : string[] => props.bottle == null ? [] as string[] : props.bottle!.replies)
+	const replyCount = computed<number>(() : number => replies.value.length)
+
+	function playIn() {
+		// timeline: mask → card → emoji → msg → btn
+		tweenRef(maskOpacity, 1, { duration: 220, ease: Ease.outQuart, onComplete: null })
+		setTimeout(() => {
+			tweenRef(cardY,     0, { duration: 520, ease: Ease.outBack, onComplete: null })
+			tweenRef(cardScale, 1, { duration: 520, ease: Ease.outBack, onComplete: null })
+		}, 100)
+		setTimeout(() => {
+			tweenRef(emojiOpacity, 1, { duration: 320, ease: Ease.outQuart, onComplete: null })
+			tweenRef(emojiRot,     0, { duration: 420, ease: Ease.outBack,  onComplete: null })
+			tweenRef(emojiScale,   1, { duration: 420, ease: Ease.outBack,  onComplete: null })
+		}, 220)
+		setTimeout(() => {
+			tweenRef(msgOpacity, 1, { duration: 300, ease: Ease.outQuart, onComplete: null })
+			tweenRef(msgY,       0, { duration: 300, ease: Ease.outQuart, onComplete: null })
+		}, 360)
+		setTimeout(() => {
+			tweenRef(btnOpacity, 1, { duration: 300, ease: Ease.outQuart, onComplete: null })
+			tweenRef(btnY,       0, { duration: 320, ease: Ease.outBack,  onComplete: null })
+		}, 460)
+	}
+
+	function playOut() {
+		tweenRef(maskOpacity, 0, { duration: 220, ease: Ease.inOutQuad, onComplete: null })
+		tweenRef(cardScale,   0.85, { duration: 220, ease: Ease.inOutQuad, onComplete: null })
+		tweenRef(cardY,       30, {
+			duration: 220, ease: Ease.inOutQuad,
+			onComplete: () => { rendered.value = false }
+		})
+	}
+
+	function resetAll() {
+		maskOpacity.value = 0
+		cardScale.value = 0.7
+		cardY.value = 40
+		emojiOpacity.value = 0
+		emojiRot.value = -25
+		emojiScale.value = 0
+		msgOpacity.value = 0
+		msgY.value = 10
+		btnOpacity.value = 0
+		btnY.value = 30
+		replying.value = false
+		replyDraft.value = ''
+	}
+
+	watch(() : boolean => props.visible, (v : boolean) => {
+		if (v) {
+			resetAll()
+			rendered.value = true
+			playIn()
+		} else if (rendered.value) {
+			playOut()
+		}
+	})
+
+	function onClose() { emit('close') }
+	function onReplyAction() {
+		if (!replying.value) {
+			replying.value = true
+			return
+		}
+		if (props.bottle == null) return
+		const ok = addBottleReply(props.bottle!.id, replyDraft.value)
+		if (ok) {
+			replying.value = false
+			replyDraft.value = ''
+		}
+	}
+	function noop() { /* prevent mask close */ }
+</script>
+
+<style>
+	.mask {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(0, 0, 0, 0.45);
+		align-items: center;
+		justify-content: center;
+		padding: 32px;
+		z-index: 100;
+	}
+	.card {
+		width: 100%;
+		padding: 40px;
+		border-radius: 56px;
+		background-color: rgba(255, 255, 255, 0.92);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.6);
+		align-items: center;
+	}
+	.emoji {
+		font-size: 56px;
+		margin-bottom: 24px;
+	}
+	.msg {
+		font-size: 16px;
+		font-weight: bold;
+		color: #1B4965;
+		text-align: center;
+		margin-bottom: 32px;
+		line-height: 26px;
+	}
+	.song {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.45);
+		margin-top: -18px;
+		margin-bottom: 22px;
+		letter-spacing: 1px;
+	}
+	.replies {
+		width: 100%;
+		padding: 16px;
+		border-radius: 24px;
+		background-color: rgba(27, 73, 101, 0.06);
+		margin-bottom: 22px;
+	}
+	.reply-title {
+		font-size: 11px;
+		color: rgba(27, 73, 101, 0.58);
+		font-weight: bold;
+		margin-bottom: 8px;
+		letter-spacing: 2px;
+	}
+	.reply-text {
+		font-size: 12px;
+		color: #1B4965;
+		line-height: 20px;
+		margin-top: 4px;
+	}
+	.reply-box {
+		width: 100%;
+		margin-bottom: 22px;
+	}
+	.reply-input {
+		width: 100%;
+		height: 96px;
+		border-radius: 24px;
+		background-color: rgba(27, 73, 101, 0.06);
+		padding: 14px;
+		font-size: 13px;
+		color: #1B4965;
+	}
+	.reply-placeholder {
+		font-size: 12px;
+		color: rgba(27, 73, 101, 0.32);
+	}
+	.actions {
+		width: 100%;
+		flex-direction: row;
+	}
+	.btn {
+		flex: 1;
+		padding-top: 18px;
+		padding-bottom: 18px;
+		border-radius: 999px;
+		align-items: center;
+	}
+	.secondary {
+		background-color: rgba(27, 73, 101, 0.08);
+		margin-right: 8px;
+	}
+	.primary {
+		background-color: #1B4965;
+		margin-left: 8px;
+	}
+	.secondary-text,
+	.primary-text {
+		font-size: 12px;
+		font-weight: bold;
+		letter-spacing: 4px;
+	}
+	.secondary-text {
+		color: rgba(27, 73, 101, 0.72);
+	}
+	.primary-text {
+		color: #ffffff;
+	}
+</style>

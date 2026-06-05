@@ -1,0 +1,52 @@
+<template>
+	<view class="container">
+		<view
+			v-for="m in moods"
+			:key="m.id"
+			class="dot"
+			:class="{ active: m.id == active }"
+			:style="'background-color:' + m.color"
+			@click="$emit('change', m.id)">
+			<text class="emoji">{{ m.icon }}</text>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import type { Mood } from '@/store/player.uts'
+	defineProps({
+		moods: { type: Array as PropType<Mood[]>, required: true },
+		active: { type: String, required: true }
+	})
+	defineEmits(['change'])
+</script>
+
+<style>
+	.container {
+		flex-direction: row;
+		padding: 12px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.28);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.4);
+	}
+	.dot {
+		width: 40px;
+		height: 40px;
+		border-radius: 999px;
+		margin-left: 8px;
+		margin-right: 8px;
+		align-items: center;
+		justify-content: center;
+		opacity: 0.45;
+	}
+	.active {
+		opacity: 1;
+		border-width: 3px;
+		border-color: rgba(255, 255, 255, 0.95);
+		transform: scale(1.1);
+	}
+	.emoji {
+		font-size: 16px;
+	}
+</style>

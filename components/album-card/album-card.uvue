@@ -1,0 +1,80 @@
+<template>
+	<view class="album" :style="entryStyle" @click="onTap">
+		<view class="cover-wrap" :style="coverStyle">
+			<image-fallback :src="cover" :fallbackSrc="fallbackImage" mode="aspectFill"></image-fallback>
+		</view>
+		<text class="title">{{ title }}</text>
+		<text class="artist">{{ artist }}</text>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, onMounted } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+	import { tapHaptic } from '@/utils/haptic.uts'
+
+	const props = defineProps({
+		title: { type: String, required: true },
+		artist: { type: String, required: true },
+		cover: { type: String, required: true },
+		fallbackImage: { type: String, default: '' },
+		delay: { type: Number, default: 0 }
+	})
+	const emit = defineEmits(['play'])
+
+	const opacity = ref(0)
+	const offsetY = ref(40)
+	const pressScale = ref(1)
+
+	const entryStyle = computed<string>(() : string =>
+		'opacity:' + opacity.value + ';transform: translateY(' + offsetY.value + 'px)'
+	)
+	const coverStyle = computed<string>(() : string =>
+		'transform: scale(' + pressScale.value + ')'
+	)
+
+	onMounted(() => {
+		setTimeout(() => {
+			tweenRef(opacity, 1, { duration: 460, ease: Ease.outQuart, onComplete: null })
+			tweenRef(offsetY, 0, { duration: 520, ease: Ease.outBack,  onComplete: null })
+		}, props.delay)
+	})
+
+	function onTap() {
+		tweenRef(pressScale, 0.94, { duration: 110, ease: Ease.outQuart, onComplete: () => {
+			tweenRef(pressScale, 1, { duration: 320, ease: Ease.outBack, onComplete: null })
+		} })
+		tapHaptic()
+		emit('play')
+	}
+</script>
+
+<style>
+	.album {
+		flex-direction: column;
+		align-items: center;
+		width: 48%;
+		margin-bottom: 20px;
+	}
+	.cover-wrap {
+		width: 100%;
+		height: 280rpx;
+		border-radius: 36px;
+		overflow: hidden;
+		margin-bottom: 10px;
+	}
+	.cover { width: 100%; height: 100%; }
+	.title {
+		font-size: 12px;
+		font-weight: bold;
+		color: #1B4965;
+		text-align: center;
+	}
+	.artist {
+		font-size: 9px;
+		color: rgba(27, 73, 101, 0.4);
+		margin-top: 2px;
+		letter-spacing: 1px;
+	}
+</style>

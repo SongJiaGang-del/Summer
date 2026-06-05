@@ -1,0 +1,38 @@
+/** 颜色工具：hex ↔ rgb，便于做色彩 tween */
+
+export type RGB = {
+	r : number,
+	g : number,
+	b : number
+}
+
+export function hexToRgb(hex : string) : RGB {
+	let h = hex.replace('#', '')
+	if (h.length == 3) {
+		// uts 中 h[0] 返回 Char，不能直接拼字符串，要用 substring
+		const c0 = h.substring(0, 1)
+		const c1 = h.substring(1, 2)
+		const c2 = h.substring(2, 3)
+		h = c0 + c0 + c1 + c1 + c2 + c2
+	}
+	return {
+		r: parseInt(h.substring(0, 2), 16),
+		g: parseInt(h.substring(2, 4), 16),
+		b: parseInt(h.substring(4, 6), 16)
+	}
+}
+
+export function rgbToCss(c : RGB) : string {
+	const r = Math.round(c.r)
+	const g = Math.round(c.g)
+	const b = Math.round(c.b)
+	return 'rgb(' + r + ',' + g + ',' + b + ')'
+}
+
+export function mixRgb(a : RGB, b : RGB, t : number) : RGB {
+	return {
+		r: a.r + (b.r - a.r) * t,
+		g: a.g + (b.g - a.g) * t,
+		b: a.b + (b.b - a.b) * t
+	}
+}

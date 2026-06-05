@@ -1,0 +1,79 @@
+<template>
+	<glass-panel rounded="r-md" variant="medium" pad="p-sm">
+		<view class="mini">
+			<view class="left">
+				<view class="play-btn" @click="$emit('toggle')">
+					<text class="play-icon">{{ playing ? '⏸' : '▶' }}</text>
+				</view>
+				<view class="meta">
+					<text class="t">{{ title }}</text>
+					<text class="a">{{ artist }}</text>
+				</view>
+			</view>
+			<view class="right">
+				<view class="ctl" @click="$emit('prev')"><text class="ctl-icon">⏮</text></view>
+				<view class="ctl" @click="$emit('next')"><text class="ctl-icon">⏭</text></view>
+			</view>
+		</view>
+	</glass-panel>
+</template>
+
+<script setup lang="uts">
+	defineProps({
+		title: { type: String, required: true },
+		artist: { type: String, required: true },
+		playing: { type: Boolean, default: false }
+	})
+	defineEmits(['toggle', 'prev', 'next'])
+</script>
+
+<style>
+	.mini {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.left {
+		flex-direction: row;
+		align-items: center;
+	}
+	.play-btn {
+		width: 44px;
+		height: 44px;
+		border-radius: 999px;
+		background-color: #1B4965;
+		align-items: center;
+		justify-content: center;
+		margin-right: 12px;
+	}
+	.play-icon {
+		color: #ffffff;
+		font-size: 16px;
+	}
+	.meta { flex-direction: column; }
+	.t {
+		font-size: 12px;
+		font-weight: bold;
+		color: #1B4965;
+	}
+	.a {
+		font-size: 9px;
+		font-weight: bold;
+		color: rgba(27, 73, 101, 0.45);
+		margin-top: 2px;
+		letter-spacing: 1px;
+	}
+	.right {
+		flex-direction: row;
+	}
+	.ctl {
+		width: 36px;
+		height: 36px;
+		align-items: center;
+		justify-content: center;
+	}
+	.ctl-icon {
+		font-size: 14px;
+		color: rgba(27, 73, 101, 0.45);
+	}
+</style>

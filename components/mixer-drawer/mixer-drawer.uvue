@@ -1,0 +1,224 @@
+<template>
+	<view v-if="rendered" class="mask" :style="maskStyle" @click="onClose">
+		<view class="drawer" :style="drawerStyle" @click.stop="noop">
+			<view class="handle"></view>
+			<text class="title">环境混音</text>
+			<text class="sub">叠加海浪、夏蝉与微雨，调出你的夏日背景声</text>
+			<view class="tracks">
+				<view v-for="(t, i) in tracks" :key="t.id"
+					class="track" :class="{ 'track-on': t.on, 'track-error': t.error }"
+					:style="trackStyle(i)"
+					@click="onToggle(t.id)">
+					<text class="track-icon">{{ t.icon }}</text>
+					<text class="track-name" :class="{ 'on-text': t.on }">{{ t.name }}</text>
+					<text class="track-state" :class="{ 'on-text': t.on }">{{ trackStateText(t) }}</text>
+					<view class="volume-row" @click.stop="noop">
+						<view
+							v-for="step in volumeSteps"
+							:key="step"
+							class="volume-dot"
+							:class="{ 'volume-dot-on': t.volume >= step, 'volume-dot-active': t.on && t.volume >= step }"
+							@click="onSetVolume(t.id, step)">
+						</view>
+					</view>
+					<view class="led" :class="{ 'led-on': t.on }"></view>
+				</view>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, watch, type Ref } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+	import { ambients, toggleAmbient, setAmbientVolume, type AmbientTrack } from '@/store/player.uts'
+	import { tapHaptic } from '@/utils/haptic.uts'
+
+	const props = defineProps({
+		visible: { type: Boolean, default: false }
+	})
+	const emit = defineEmits(['close'])
+
+	const tracks = computed<AmbientTrack[]>(() : AmbientTrack[] => ambients.value)
+
+	const rendered = ref(false)
+	const maskOpacity = ref(0)
+	const drawerY = ref(400)
+
+	const trackOpacities : Ref<number>[] = [ref(0), ref(0), ref(0)]
+	const trackOffsets   : Ref<number>[] = [ref(30), ref(30), ref(30)]
+	const volumeSteps : number[] = [0.25, 0.5, 0.75, 1]
+
+	const maskStyle   = computed<string>(() : string => 'opacity:' + maskOpacity.value)
+	const drawerStyle = computed<string>(() : string => 'transform: translateY(' + drawerY.value + 'px)')
+
+	function trackStyle(i : number) : string {
+		return 'opacity:' + trackOpacities[i].value
+			+ ';transform: translateY(' + trackOffsets[i].value + 'px)'
+	}
+
+	function playIn() {
+		tweenRef(maskOpacity, 1, { duration: 240, ease: Ease.outQuart, onComplete: null })
+		tweenRef(drawerY, 0, { duration: 520, ease: Ease.outBack, onComplete: null })
+		for (let i = 0; i < 3; i++) {
+			const idx = i
+			setTimeout(() => {
+				tweenRef(trackOpacities[idx], 1, { duration: 320, ease: Ease.outQuart, onComplete: null })
+				tweenRef(trackOffsets[idx], 0, { duration: 380, ease: Ease.outBack, onComplete: null })
+			}, 200 + idx * 80)
+		}
+	}
+
+	function playOut() {
+		tweenRef(maskOpacity, 0, { duration: 220, ease: Ease.inOutQuad, onComplete: null })
+		tweenRef(drawerY, 400, {
+			duration: 280, ease: Ease.inOutQuad,
+			onComplete: () => {
+				rendered.value = false
+				for (let i = 0; i < 3; i++) {
+					trackOpacities[i].value = 0
+					trackOffsets[i].value = 30
+				}
+			}
+		})
+	}
+
+	watch(() : boolean => props.visible, (v : boolean) => {
+		if (v) {
+			rendered.value = true
+			playIn()
+		} else if (rendered.value) {
+			playOut()
+		}
+	})
+
+	function onClose() { emit('close') }
+	function onToggle(id : string) {
+		tapHaptic()
+		toggleAmbient(id)
+	}
+	function onSetVolume(id : string, step : number) {
+		tapHaptic()
+		setAmbientVolume(id, step)
+	}
+	function trackStateText(track : AmbientTrack) : string {
+		if (track.error) return '加载失败'
+		if (track.loading) return '加载中'
+		return track.on ? Math.round(track.volume * 100) + '%' : '未开启'
+	}
+	function noop() { /* prevent bubbling to mask */ }
+</script>
+
+<style>
+	.mask {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(0, 0, 0, 0.4);
+		justify-content: flex-end;
+		z-index: 110;
+	}
+	.drawer {
+		background-color: rgba(255, 255, 255, 0.95);
+		border-top-left-radius: 48px;
+		border-top-right-radius: 48px;
+		padding: 28px;
+		padding-bottom: 48px;
+		align-items: center;
+	}
+	.handle {
+		width: 48px;
+		height: 5px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.25);
+		margin-bottom: 18px;
+	}
+	.title {
+		font-size: 14px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 6px;
+	}
+	.sub {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.45);
+		margin-top: 8px;
+		margin-bottom: 24px;
+	}
+	.tracks {
+		flex-direction: row;
+		justify-content: space-between;
+		width: 100%;
+	}
+	.track {
+		flex: 1;
+		margin-left: 8px;
+		margin-right: 8px;
+		padding-top: 20px;
+		padding-bottom: 20px;
+		border-radius: 32px;
+		background-color: rgba(27, 73, 101, 0.05);
+		border-width: 1px;
+		border-color: rgba(27, 73, 101, 0.08);
+		align-items: center;
+		position: relative;
+	}
+	.track-on {
+		background-color: rgba(27, 73, 101, 0.95);
+		border-color: rgba(255, 255, 255, 0.4);
+	}
+	.track-error {
+		opacity: 0.72;
+	}
+	.track-icon { font-size: 28px; }
+	.track-name {
+		font-size: 11px;
+		font-weight: bold;
+		color: #1B4965;
+		margin-top: 8px;
+		letter-spacing: 3px;
+	}
+	.track-state {
+		font-size: 9px;
+		color: rgba(27, 73, 101, 0.42);
+		margin-top: 6px;
+		font-weight: bold;
+		letter-spacing: 1px;
+	}
+	.on-text { color: #ffffff; }
+	.volume-row {
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		margin-top: 12px;
+	}
+	.volume-dot {
+		width: 12px;
+		height: 12px;
+		border-radius: 999px;
+		margin-left: 3px;
+		margin-right: 3px;
+		background-color: rgba(27, 73, 101, 0.12);
+		border-width: 1px;
+		border-color: rgba(27, 73, 101, 0.12);
+	}
+	.volume-dot-on {
+		background-color: rgba(27, 73, 101, 0.32);
+	}
+	.volume-dot-active {
+		background-color: #AEEFF0;
+		border-color: rgba(255, 255, 255, 0.72);
+	}
+	.led {
+		position: absolute;
+		top: 10px;
+		right: 10px;
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background-color: rgba(27, 73, 101, 0.15);
+	}
+	.led-on {
+		background-color: #AEEFF0;
+	}
+</style>

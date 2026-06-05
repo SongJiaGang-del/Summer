@@ -1,0 +1,10 @@
+/**
+ * 触觉反馈占位实现。
+ *
+ * uni-app x 的 uni.vibrateShort 在不同平台的类型签名差异较大，
+ * 用对象字面量调用容易导致 uts 编译报错（"找不到名称 vibrateShort"）。
+ * 先 noop，工程跑通后按目标平台改为 uni.vibrateShort(...) 即可。
+ */
+export function tapHaptic() {
+	// 跑通编译后再启用真实触觉反馈
+}

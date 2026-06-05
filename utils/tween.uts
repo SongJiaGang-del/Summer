@@ -1,0 +1,113 @@
+/**
+ * 中心化 tween 引擎。
+ *
+ * - 全局只有一个 setInterval(16ms)，调度所有活跃 tween
+ * - 没有活跃 tween 时 ticker 自动停止
+ * - cancel() 标记 done，下一帧自动清理
+ *
+ * 用法保持与单 tween 版本一致（外部接口不变）。
+ */
+
+import { linear, type EaseFn } from '@/utils/ease.uts'
+
+export type TweenOpts = {
+	from : number,
+	to : number,
+	duration : number,
+	ease : EaseFn | null,
+	onUpdate : (v : number) => void,
+	onComplete : (() => void) | null
+}
+
+export type TweenHandle = {
+	cancel : () => void
+}
+
+type ActiveTween = {
+	startAt : number,
+	from : number,
+	to : number,
+	duration : number,
+	ease : EaseFn,
+	onUpdate : (v : number) => void,
+	onComplete : (() => void) | null,
+	done : boolean
+}
+
+const FRAME_MS = 16
+const activeList : ActiveTween[] = []
+let tickerId : number = 0
+
+function now() : number {
+	// uni-app x 目标端对 performance.now() 支持不完全一致，保留 Date.now() 作为稳定时间源。
+	return Date.now()
+}
+
+function tick() {
+	const t = now()
+	let i = 0
+	while (i < activeList.length) {
+		const at = activeList[i]
+		if (at.done) {
+			activeList.splice(i, 1)
+			continue
+		}
+		const elapsed = t - at.startAt
+		let p = elapsed / at.duration
+		if (p >= 1) p = 1
+		const v = at.from + (at.to - at.from) * at.ease(p)
+		at.onUpdate(v)
+		if (p >= 1) {
+			at.done = true
+			const cb = at.onComplete
+			activeList.splice(i, 1)
+			if (cb != null) cb!()
+			continue
+		}
+		i++
+	}
+	if (activeList.length == 0 && tickerId != 0) {
+		clearInterval(tickerId)
+		tickerId = 0
+	}
+}
+
+function ensureTicker() {
+	if (tickerId != 0) return
+	tickerId = setInterval(() => { tick() }, FRAME_MS) as number
+}
+
+export function tween(opts : TweenOpts) : TweenHandle {
+	const easeFn : EaseFn = opts.ease != null ? opts.ease! : linear
+	const at : ActiveTween = {
+		startAt: now(),
+		from: opts.from,
+		to: opts.to,
+		duration: opts.duration,
+		ease: easeFn,
+		onUpdate: opts.onUpdate,
+		onComplete: opts.onComplete,
+		done: false
+	}
+	// 首帧立即同步一次
+	opts.onUpdate(opts.from)
+	activeList.push(at)
+	ensureTicker()
+	return {
+		cancel: () => { at.done = true }
+	}
+}
+
+/** 延时工具，串行编排时使用 */
+export function delay(ms : number, fn : () => void) : TweenHandle {
+	let cancelled = false
+	const t = setTimeout(() => {
+		if (!cancelled) fn()
+	}, ms) as number
+	return {
+		cancel: () => {
+			cancelled = true
+			clearTimeout(t)
+		}
+	}
+}

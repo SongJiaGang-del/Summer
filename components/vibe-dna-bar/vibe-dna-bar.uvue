@@ -1,0 +1,76 @@
+<template>
+	<view class="row" :style="rowStyle">
+		<text class="name">{{ name }}</text>
+		<view class="track">
+			<view class="fill" :style="fillStyle"></view>
+		</view>
+		<text class="percent">{{ displayPercent }}%</text>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, onMounted } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+
+	const props = defineProps({
+		name: { type: String, required: true },
+		percent: { type: Number, required: true },
+		color: { type: String, default: '#60A5FA' },
+		delay: { type: Number, default: 0 }
+	})
+
+	const animPercent = ref(0)
+	const opacity = ref(0)
+
+	const displayPercent = computed<number>(() : number => Math.round(animPercent.value))
+
+	const fillStyle = computed<string>(() : string => {
+		return 'width:' + animPercent.value + '%; background-color:' + props.color
+	})
+	const rowStyle = computed<string>(() : string => {
+		return 'opacity:' + opacity.value
+	})
+
+	onMounted(() => {
+		setTimeout(() => {
+			tweenRef(opacity, 1, { duration: 300, ease: Ease.outQuart, onComplete: null })
+			tweenRef(animPercent, props.percent, { duration: 1500, ease: Ease.outQuart, onComplete: null })
+		}, props.delay)
+	})
+</script>
+
+<style>
+	.row {
+		flex-direction: row;
+		align-items: center;
+		margin-bottom: 14px;
+	}
+	.name {
+		width: 90px;
+		font-size: 9px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 1px;
+	}
+	.track {
+		flex: 1;
+		height: 10px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.06);
+		overflow: hidden;
+		margin-left: 14px;
+		margin-right: 14px;
+	}
+	.fill {
+		height: 100%;
+		border-radius: 999px;
+	}
+	.percent {
+		width: 36px;
+		font-size: 9px;
+		font-weight: bold;
+		color: rgba(27, 73, 101, 0.45);
+		text-align: right;
+	}
+</style>

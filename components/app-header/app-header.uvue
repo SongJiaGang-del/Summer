@@ -1,0 +1,93 @@
+<template>
+	<view class="header">
+		<view class="left">
+			<text class="greeting">{{ greeting }}</text>
+			<text class="title">{{ title }}</text>
+		</view>
+		<view class="right">
+			<view class="mixer-btn" @click="$emit('mixer')">
+				<text class="mixer-icon">≡</text>
+			</view>
+			<view class="mood-pill">
+				<text class="mood-emoji">{{ moodEmoji }}</text>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed } from 'vue'
+
+	const props = defineProps({
+		title: { type: String, default: '夏日律动' },
+		moodEmoji: { type: String, default: '🌊' },
+		moodId: { type: String, default: 'sea-salt' }
+	})
+	defineEmits(['mixer'])
+
+	const greeting = computed<string>(() : string => {
+		if (props.moodId == 'strawberry') return '日落正在靠近'
+		if (props.moodId == 'mint') return '给夜晚一点清凉'
+		const h = new Date().getHours()
+		if (h >= 18 || h < 5) return '海风陪你慢慢听'
+		return '海风适合慢慢听'
+	})
+</script>
+
+<style>
+	.header {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		padding-left: 24px;
+		padding-right: 24px;
+		padding-top: 24px;
+		padding-bottom: 16px;
+	}
+	.left { flex-direction: column; }
+	.greeting {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.4);
+		font-weight: bold;
+		letter-spacing: 4px;
+	}
+	.title {
+		font-size: 24px;
+		font-weight: bold;
+		color: #1B4965;
+		margin-top: 4px;
+	}
+	.right {
+		flex-direction: row;
+		align-items: center;
+	}
+	.mixer-btn {
+		width: 40px;
+		height: 40px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.3);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.4);
+		align-items: center;
+		justify-content: center;
+		margin-right: 10px;
+	}
+	.mixer-icon {
+		font-size: 16px;
+		color: #1B4965;
+		font-weight: bold;
+	}
+	.mood-pill {
+		width: 40px;
+		height: 40px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.3);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.4);
+		align-items: center;
+		justify-content: center;
+	}
+	.mood-emoji {
+		font-size: 18px;
+	}
+</style>

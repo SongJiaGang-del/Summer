@@ -1,0 +1,58 @@
+<template>
+	<view class="glass" :class="panelClass">
+		<slot></slot>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { computed } from 'vue'
+
+	/** uvue 无 backdrop-filter，使用半透明白 + 极细边框近似毛玻璃 */
+	const props = defineProps({
+		rounded: {
+			type: String,
+			default: 'r-lg'
+		},
+		variant: {
+			type: String,
+			default: 'soft'
+		},
+		pad: {
+			type: String,
+			default: 'p-none'
+		}
+	})
+
+	const panelClass = computed<string>(() : string => {
+		return props.rounded + ' v-' + props.variant + ' ' + props.pad
+	})
+</script>
+
+<style>
+	.glass {
+		border-width: 1px;
+		border-style: solid;
+	}
+	.r-sm  { border-radius: 16px; }
+	.r-md  { border-radius: 28px; }
+	.r-lg  { border-radius: 40px; }
+	.r-xl  { border-radius: 56px; }
+	.r-sheet { border-top-left-radius: 48px; border-top-right-radius: 48px; }
+	.r-pill{ border-radius: 999px; }
+	.v-soft {
+		background-color: rgba(255, 255, 255, 0.20);
+		border-color: rgba(255, 255, 255, 0.45);
+	}
+	.v-medium {
+		background-color: rgba(255, 255, 255, 0.32);
+		border-color: rgba(255, 255, 255, 0.45);
+	}
+	.v-strong {
+		background-color: rgba(255, 255, 255, 0.92);
+		border-color: rgba(255, 255, 255, 0.60);
+	}
+	.p-none { padding: 0; }
+	.p-sm { padding: 14px; }
+	.p-md { padding: 20px; }
+	.p-lg { padding: 24px; }
+</style>

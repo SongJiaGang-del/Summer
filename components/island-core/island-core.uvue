@@ -1,0 +1,153 @@
+<template>
+	<view class="wrap">
+		<view class="core" :style="coreStyle" @click="pulse">
+			<text class="label">岛屿能量</text>
+			<text class="lv">LV.{{ displayLv }}</text>
+			<!-- 等级经验进度条 -->
+			<view class="exp-track">
+				<view class="exp-fill" :style="expStyle"></view>
+			</view>
+			<text class="exp-text">{{ Math.round(displayExp) }}% → LV.{{ displayLv + 1 }}</text>
+		</view>
+		<view class="badge" :style="badgeStyle">
+			<text class="badge-text">{{ title }}</text>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, onMounted, watch } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+
+	const props = defineProps({
+		level: { type: Number, default: 1 },
+		expPercent: { type: Number, default: 0 },
+		title: { type: String, default: '初探深海' }
+	})
+
+	const scale = ref(0.4)
+	const rotate = ref(-180)
+	const opacity = ref(0)
+	const lvNum = ref(0)
+	const displayExp = ref(0)
+	const badgeOffset = ref(40)
+	const badgeOpacity = ref(0)
+
+	const displayLv = computed<number>(() : number => Math.floor(lvNum.value))
+	const expStyle = computed<string>(() : string => 'width:' + displayExp.value + '%')
+
+	const coreStyle = computed<string>(() : string => {
+		return 'opacity:' + opacity.value
+			+ ';transform: scale(' + scale.value + ') rotate(' + rotate.value + 'deg)'
+	})
+	const badgeStyle = computed<string>(() : string => {
+		return 'opacity:' + badgeOpacity.value
+			+ ';transform: translateY(' + badgeOffset.value + 'px)'
+	})
+
+	function pulse() {
+		tweenRef(scale, 1.06, { duration: 150, ease: Ease.outQuart, onComplete: () => {
+			tweenRef(scale, 1, { duration: 220, ease: Ease.outBack, onComplete: null })
+		} })
+	}
+
+	onMounted(() => {
+		// 1) 圆盘入场：缩放 + 自旋
+		tweenRef(opacity, 1, { duration: 600, ease: Ease.outQuart, onComplete: null })
+		tweenRef(scale,   1, { duration: 800, ease: Ease.outBack,  onComplete: null })
+		tweenRef(rotate,  0, { duration: 800, ease: Ease.outQuart, onComplete: null })
+		// 2) LV 数字滚动 0→level
+		tweenRef(lvNum, props.level, { duration: 1200, ease: Ease.outQuart, onComplete: null })
+		// 3) exp 进度填充
+		setTimeout(() => {
+			tweenRef(displayExp, props.expPercent, { duration: 1500, ease: Ease.outQuart, onComplete: null })
+		}, 400)
+		// 4) 称号徽章后入场
+		setTimeout(() => {
+			tweenRef(badgeOpacity, 1, { duration: 400, ease: Ease.outQuart, onComplete: null })
+			tweenRef(badgeOffset, 0, { duration: 500, ease: Ease.outBack, onComplete: null })
+		}, 500)
+	})
+
+	/* level / expPercent 变更时同步 tween（升级时的庆祝动画） */
+	watch(() : number => props.level, (newLv : number, oldLv : number) => {
+		tweenRef(lvNum, newLv, { duration: 600, ease: Ease.outBack, onComplete: null })
+		if (newLv > oldLv) {
+			// 升级庆祝：core 大跳一下
+			tweenRef(scale, 1.15, { duration: 240, ease: Ease.outBack, onComplete: () => {
+				tweenRef(scale, 1, { duration: 320, ease: Ease.outBack, onComplete: null })
+			} })
+		}
+	})
+	watch(() : number => props.expPercent, (p : number) => {
+		tweenRef(displayExp, p, { duration: 600, ease: Ease.outQuart, onComplete: null })
+	})
+</script>
+
+<style>
+	.wrap {
+		align-items: center;
+		justify-content: center;
+		margin-top: 24px;
+		margin-bottom: 36px;
+	}
+	.core {
+		width: 480rpx;
+		height: 480rpx;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.28);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.45);
+		align-items: center;
+		justify-content: center;
+	}
+	.label {
+		font-size: 9px;
+		color: rgba(27, 73, 101, 0.5);
+		font-weight: bold;
+		letter-spacing: 4px;
+	}
+	.lv {
+		font-size: 56px;
+		font-weight: bold;
+		color: #1B4965;
+		margin-top: 8px;
+	}
+	.exp-track {
+		width: 160rpx;
+		height: 4px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.1);
+		margin-top: 10px;
+		overflow: hidden;
+	}
+	.exp-fill {
+		height: 100%;
+		background-color: #1B4965;
+		border-radius: 999px;
+	}
+	.exp-text {
+		font-size: 8px;
+		color: rgba(27, 73, 101, 0.45);
+		font-weight: bold;
+		margin-top: 4px;
+		letter-spacing: 1px;
+	}
+	.badge {
+		position: absolute;
+		bottom: -14px;
+		background-color: #1B4965;
+		padding-left: 20px;
+		padding-right: 20px;
+		padding-top: 8px;
+		padding-bottom: 8px;
+		border-radius: 999px;
+	}
+	.badge-text {
+		color: #ffffff;
+		font-size: 10px;
+		font-weight: bold;
+		letter-spacing: 3px;
+	}
+</style>

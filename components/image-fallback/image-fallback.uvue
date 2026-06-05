@@ -1,0 +1,124 @@
+<template>
+	<view class="wrap">
+		<view v-if="!loaded && !failed" class="placeholder">
+			<view class="shimmer" :style="shimmerStyle"></view>
+		</view>
+		<view v-if="failed" class="failed">
+			<text class="failed-emoji">🌊</text>
+			<text class="failed-text">图片加载失败</text>
+		</view>
+		<image v-if="!failed"
+			class="img"
+			:src="displaySrc"
+			:mode="mode"
+			:style="imgStyle"
+			@load="onLoad"
+			@error="onError">
+		</image>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+
+	const props = defineProps({
+		src: { type: String, required: true },
+		fallbackSrc: { type: String, default: '' },
+		mode: { type: String, default: 'aspectFill' }
+	})
+
+	const loaded = ref(false)
+	const failed = ref(false)
+	const usingFallback = ref(false)
+	const shimmerPos = ref(0)
+
+	const displaySrc = computed<string>(() : string => usingFallback.value ? props.fallbackSrc : props.src)
+	const shimmerStyle = computed<string>(() : string => 'transform: translateX(' + shimmerPos.value + '%)')
+	const imgStyle = computed<string>(() : string => 'opacity:' + (loaded.value ? 1 : 0))
+
+	let shimmerTimer : number = 0
+	function stopShimmer() {
+		if (shimmerTimer != 0) {
+			clearInterval(shimmerTimer)
+			shimmerTimer = 0
+		}
+	}
+	function startShimmer() {
+		if (shimmerTimer != 0) return
+		shimmerTimer = setInterval(() => {
+			shimmerPos.value += 2
+			if (shimmerPos.value > 100) shimmerPos.value = -100
+		}, 30) as number
+	}
+	onMounted(() => {
+		// 自驱动 shimmer：每 30ms 推 2%，加载结束后停止计时器。
+		startShimmer()
+	})
+	onUnmounted(() => {
+		stopShimmer()
+	})
+
+	watch(() : string => props.src, () => {
+		loaded.value = false
+		failed.value = false
+		usingFallback.value = false
+		startShimmer()
+	})
+
+	function onLoad() {
+		loaded.value = true
+		failed.value = false
+		stopShimmer()
+	}
+	function onError() {
+		if (!usingFallback.value && props.fallbackSrc != '') {
+			usingFallback.value = true
+			loaded.value = false
+			startShimmer()
+			return
+		}
+		failed.value = true
+		stopShimmer()
+	}
+</script>
+
+<style>
+	.wrap {
+		width: 100%;
+		height: 100%;
+		position: relative;
+		overflow: hidden;
+		background-color: rgba(27, 73, 101, 0.08);
+	}
+	.placeholder {
+		position: absolute;
+		left: 0; right: 0; top: 0; bottom: 0;
+	}
+	.shimmer {
+		position: absolute;
+		top: 0; bottom: 0;
+		width: 60%;
+		background-color: rgba(255, 255, 255, 0.45);
+	}
+	.failed {
+		position: absolute;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(27, 73, 101, 0.12);
+		align-items: center;
+		justify-content: center;
+	}
+	.failed-emoji {
+		font-size: 28px;
+		opacity: 0.5;
+	}
+	.failed-text {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.45);
+		margin-top: 8px;
+		font-weight: bold;
+	}
+	.img {
+		width: 100%;
+		height: 100%;
+	}
+</style>

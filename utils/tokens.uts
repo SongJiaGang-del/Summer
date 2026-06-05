@@ -1,0 +1,112 @@
+/**
+ * 设计 Token 单一来源。
+ *
+ * 所有颜色 / 圆角 / 动效时长统一从这里取值；
+ * 任何视觉调整只需要改这一处。
+ *
+ * uts 类型严格：每个 token group 都用命名类型 + 显式标注。
+ */
+
+/* ───── 色彩 ───── */
+export type ColorTokens = {
+	deepSea : string,      // #1B4965 主色
+	deepSeaA8 : string,    // 8% 透明
+	deepSeaA12 : string,
+	deepSeaA20 : string,
+	deepSeaA32 : string,
+	deepSeaA45 : string,
+	deepSeaA55 : string,
+	deepSeaA80 : string,
+	minty : string,        // #AEEFF0 海盐薄荷
+	mintyBg : string,      // #E0F7FA 浅薄荷
+	coral : string,        // #FF8577 日落珊瑚
+	lemon : string,        // #FFF275 柠檬汽水
+	white : string,
+	whiteA20 : string,
+	whiteA24 : string,
+	whiteA32 : string,
+	whiteA45 : string,
+	whiteA60 : string,
+	whiteA92 : string
+}
+
+export const Colors : ColorTokens = {
+	deepSea: '#1B4965',
+	deepSeaA8: 'rgba(27, 73, 101, 0.08)',
+	deepSeaA12: 'rgba(27, 73, 101, 0.12)',
+	deepSeaA20: 'rgba(27, 73, 101, 0.20)',
+	deepSeaA32: 'rgba(27, 73, 101, 0.32)',
+	deepSeaA45: 'rgba(27, 73, 101, 0.45)',
+	deepSeaA55: 'rgba(27, 73, 101, 0.55)',
+	deepSeaA80: 'rgba(27, 73, 101, 0.80)',
+	minty: '#AEEFF0',
+	mintyBg: '#E0F7FA',
+	coral: '#FF8577',
+	lemon: '#FFF275',
+	white: '#FFFFFF',
+	whiteA20: 'rgba(255, 255, 255, 0.20)',
+	whiteA24: 'rgba(255, 255, 255, 0.24)',
+	whiteA32: 'rgba(255, 255, 255, 0.32)',
+	whiteA45: 'rgba(255, 255, 255, 0.45)',
+	whiteA60: 'rgba(255, 255, 255, 0.60)',
+	whiteA92: 'rgba(255, 255, 255, 0.92)'
+}
+
+/* ───── 圆角 ───── */
+export type RadiusTokens = {
+	sm : number,    // 卡片小圆角
+	md : number,    // 标准卡片
+	lg : number,    // 大卡片
+	xl : number,    // 弹窗
+	sheet : number,
+	pill : number   // 胶囊
+}
+
+export const Radius : RadiusTokens = {
+	sm: 16,
+	md: 28,
+	lg: 40,
+	xl: 56,
+	sheet: 48,
+	pill: 999
+}
+
+/* ───── 动效时长（ms）───── */
+export type DurationTokens = {
+	instant : number,
+	fast : number,
+	page : number,
+	modal : number,
+	normal : number,
+	slow : number,
+	ambient : number
+}
+
+export const Duration : DurationTokens = {
+	instant: 120,
+	fast: 240,
+	page: 300,
+	modal: 420,
+	normal: 400,
+	slow: 600,
+	ambient: 1200
+}
+
+/* ───── 字号 ───── */
+export type FontSizeTokens = {
+	micro : number,
+	caption : number,
+	body : number,
+	subtitle : number,
+	title : number,
+	display : number
+}
+
+export const FontSize : FontSizeTokens = {
+	micro: 9,
+	caption: 11,
+	body: 14,
+	subtitle: 18,
+	title: 24,
+	display: 36
+}

@@ -1,0 +1,20 @@
+/**
+ * 响应式单位换算 —— uni-app x 没有 uni.upx2px，自己实现。
+ *
+ * 1 rpx = 屏宽 / 750
+ * 用法：rpx2px(80) 拿到 rpx 在当前屏的真实像素值，与 CSS 的 80rpx 一致
+ */
+
+let _ratio : number = 0
+
+function getRatio() : number {
+	if (_ratio == 0) {
+		const info = uni.getSystemInfoSync()
+		_ratio = info.windowWidth / 750
+	}
+	return _ratio
+}
+
+export function rpx2px(rpx : number) : number {
+	return rpx * getRatio()
+}

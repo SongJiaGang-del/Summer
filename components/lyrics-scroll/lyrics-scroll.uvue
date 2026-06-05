@@ -1,0 +1,119 @@
+<template>
+	<view class="viewport" :style="viewportStyle">
+		<view class="lyrics" :style="scrollStyle">
+			<view
+				v-for="(line, index) in lines"
+				:key="index"
+				class="line"
+				@click="onLineTap(index)">
+				<text class="line-text"
+					:class="{
+						'text-active': index == currentIndex,
+						'text-near': Math.abs(index - currentIndex) == 1
+					}"
+					:style="lineStyle(index)">{{ line }}</text>
+			</view>
+		</view>
+		<!-- 上下遮罩条，模拟 mask-image -->
+		<view class="fade fade-top"></view>
+		<view class="fade fade-bot"></view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, watch } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+	import { rpx2px } from '@/utils/responsive.uts'
+
+	const props = defineProps({
+		lines: { type: Array as PropType<string[]>, required: true },
+		currentIndex: { type: Number, default: 0 }
+	})
+	const emit = defineEmits(['seek'])
+
+	// 与 CSS 的 .line { height: 80rpx } 保持一致：用 rpx2px 把 rpx 实时换成 px
+	const LINE_H = rpx2px(80)
+	const CENTER_OFFSET = rpx2px(96) // viewport 中线偏移
+
+	const scrollY = ref<number>(CENTER_OFFSET - props.currentIndex * LINE_H)
+	const activeScale = ref(1)
+	const wrapperOpacity = ref(1)
+
+	const scrollStyle = computed<string>(() : string => 'transform: translateY(' + scrollY.value + 'px)')
+	const viewportStyle = computed<string>(() : string => 'opacity:' + wrapperOpacity.value)
+
+	function lineStyle(idx : number) : string {
+		if (idx == props.currentIndex) return 'transform: scale(' + activeScale.value + ')'
+		return ''
+	}
+
+	/* 切歌：歌词整体淡出 → 重置位置 → 淡入 */
+	watch(() : string[] => props.lines, () => {
+		tweenRef(wrapperOpacity, 0, {
+			duration: 240, ease: Ease.inOutQuad,
+			onComplete: () => {
+				scrollY.value = CENTER_OFFSET
+				tweenRef(wrapperOpacity, 1, { duration: 380, ease: Ease.outQuart, onComplete: null })
+			}
+		})
+	})
+
+	watch(() : number => props.currentIndex, (idx : number) => {
+		// 平滑滚到目标行
+		tweenRef(scrollY, CENTER_OFFSET - idx * LINE_H, {
+			duration: 520, ease: Ease.outQuart, onComplete: null
+		})
+		// 当前行弹一下
+		activeScale.value = 0.92
+		tweenRef(activeScale, 1.05, { duration: 280, ease: Ease.outBack, onComplete: () => {
+			tweenRef(activeScale, 1, { duration: 200, ease: Ease.outQuart, onComplete: null })
+		} })
+	})
+
+	function onLineTap(idx : number) {
+		emit('seek', idx)
+	}
+</script>
+
+<style>
+	.viewport {
+		width: 100%;
+		height: 100%;
+		overflow: hidden;
+		position: relative;
+	}
+	.lyrics {
+		flex-direction: column;
+		align-items: center;
+		width: 100%;
+	}
+	.line {
+		height: 80rpx;
+		align-items: center;
+		justify-content: center;
+		width: 100%;
+	}
+	.line-text {
+		font-size: 14px;
+		color: rgba(27, 73, 101, 0.18);
+		text-align: center;
+		font-weight: bold;
+	}
+	.text-near {
+		font-size: 15px;
+		color: rgba(27, 73, 101, 0.45);
+	}
+	.text-active {
+		font-size: 20px;
+		color: #1B4965;
+		font-weight: bold;
+	}
+	.fade {
+		position: absolute;
+		left: 0; right: 0;
+		height: 30px;
+	}
+	.fade-top { top: 0; }
+	.fade-bot { bottom: 0; }
+</style>

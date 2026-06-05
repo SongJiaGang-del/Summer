@@ -1,0 +1,102 @@
+<template>
+	<view v-if="rendered" class="wrap" :style="wrapStyle">
+		<view class="card">
+			<text class="icon">{{ icon }}</text>
+			<view class="bar">
+				<view class="fill" :style="fillStyle"></view>
+			</view>
+			<text class="percent">{{ volumeText }}</text>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, watch } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+
+	const props = defineProps({
+		volume: { type: Number, default: 0.7 },
+		visible: { type: Boolean, default: false }
+	})
+
+	const rendered = ref(false)
+	const opacity = ref(0)
+	let hideTimer : number = 0
+
+	const wrapStyle = computed<string>(() : string => 'opacity:' + opacity.value)
+	const fillStyle = computed<string>(() : string => 'height:' + (props.volume * 100) + '%')
+	const volumeText = computed<string>(() : string => {
+		if (props.volume <= 0.001) return '静音'
+		return Math.round(props.volume * 100) + '%'
+	})
+	const icon = computed<string>(() : string => {
+		if (props.volume <= 0.001) return '🔇'
+		if (props.volume < 0.4) return '🔈'
+		if (props.volume < 0.75) return '🔉'
+		return '🔊'
+	})
+
+	watch(() : boolean => props.visible, (v : boolean) => {
+		if (v) {
+			rendered.value = true
+			if (hideTimer != 0) clearTimeout(hideTimer)
+			tweenRef(opacity, 1, { duration: 180, ease: Ease.outQuart, onComplete: null })
+		} else {
+			// 不立即消失：再停留 1.2s 后淡出
+			if (hideTimer != 0) clearTimeout(hideTimer)
+			hideTimer = setTimeout(() => {
+				tweenRef(opacity, 0, {
+					duration: 400, ease: Ease.inOutQuad,
+					onComplete: () => { rendered.value = false }
+				})
+			}, 1200) as number
+		}
+	})
+</script>
+
+<style>
+	.wrap {
+		position: fixed;
+		left: 50%;
+		top: 50%;
+		margin-left: -60px;
+		margin-top: -90px;
+		z-index: 105;
+		pointer-events: none;
+	}
+	.card {
+		width: 120px;
+		height: 180px;
+		border-radius: 36px;
+		background-color: rgba(27, 73, 101, 0.92);
+		align-items: center;
+		justify-content: center;
+		padding-top: 20px;
+		padding-bottom: 20px;
+	}
+	.icon {
+		font-size: 24px;
+		margin-bottom: 14px;
+	}
+	.bar {
+		width: 8px;
+		height: 100px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.18);
+		overflow: hidden;
+		justify-content: flex-end;
+	}
+	.fill {
+		width: 100%;
+		background-color: #AEEFF0;
+		border-radius: 999px;
+	}
+	.percent {
+		font-size: 11px;
+		font-weight: bold;
+		color: #ffffff;
+		margin-top: 12px;
+		letter-spacing: 2px;
+	}
+</style>

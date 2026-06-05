@@ -1,0 +1,221 @@
+<template>
+	<view class="wrap">
+		<view class="ring ring-outer"></view>
+		<view class="ring ring-inner"></view>
+		<view class="disc" :style="discStyle" @click="onTap">
+			<view class="cover-box" :style="coverStyle">
+				<image-fallback :src="cover" :fallbackSrc="fallbackImage" mode="aspectFill"></image-fallback>
+			</view>
+			<view class="hole"></view>
+		</view>
+		<!-- 唱针：暂停时抬起 -->
+		<view class="tonearm" :style="tonearmStyle">
+			<view class="tonearm-base"></view>
+			<view class="tonearm-stick"></view>
+			<view class="tonearm-head"></view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+	import { tapHaptic } from '@/utils/haptic.uts'
+
+	const props = defineProps({
+		cover: { type: String, required: true },
+		fallbackImage: { type: String, default: '' },
+		playing: { type: Boolean, default: false },
+		progress: { type: Number, default: 0 }
+	})
+	const emit = defineEmits(['toggle'])
+
+	/** 唱针落点：暂停时抬起，播放时随进度从外圈轻微向内移动 */
+	const TONEARM_LIFT = -22
+	const TONEARM_OUTER = -6
+	const TONEARM_INNER = 2
+
+	function tonearmTarget() : number {
+		if (!props.playing) return TONEARM_LIFT
+		let p = props.progress
+		if (p < 0) p = 0
+		if (p > 100) p = 100
+		return TONEARM_OUTER + (TONEARM_INNER - TONEARM_OUTER) * (p / 100)
+	}
+
+	const tonearmRot = ref(tonearmTarget())
+	const pressScale = ref(1)
+	const discRotation = ref(0)
+	const speed = ref(props.playing ? 1 : 0)   // 0–1，控制旋转速度倍率
+	const coverOpacity = ref(1)
+	let prevCover = props.cover
+
+	const tonearmStyle = computed<string>(() : string => 'transform: rotate(' + tonearmRot.value + 'deg)')
+	const discStyle = computed<string>(() : string =>
+		'transform: rotate(' + discRotation.value + 'deg) scale(' + pressScale.value + ')'
+	)
+	const coverStyle = computed<string>(() : string => 'opacity:' + coverOpacity.value)
+
+	/* JS 驱动旋转：speed 通过 tween 在 0~1 变化，速度倍率叠加 */
+	const DEG_PER_FRAME = 360 / (20000 / 16) // 360°/20s
+	let spinTimer : number = 0
+	function stopSpin() {
+		if (spinTimer == 0) return
+		clearInterval(spinTimer)
+		spinTimer = 0
+	}
+	function startSpin() {
+		if (spinTimer != 0) return
+		spinTimer = setInterval(() => {
+			if (speed.value <= 0.001 && !props.playing) {
+				stopSpin()
+				return
+			}
+			discRotation.value = (discRotation.value + DEG_PER_FRAME * speed.value) % 360
+		}, 16) as number
+	}
+
+	/* 唱针随播放/暂停升降 */
+	watch(() : boolean => props.playing, (v : boolean) => {
+		if (v) startSpin()
+		tweenRef(tonearmRot, tonearmTarget(), {
+			duration: v ? 500 : 380,
+			ease: Ease.outBack, onComplete: null
+		})
+		tweenRef(speed, v ? 1 : 0, {
+			duration: 600,
+			ease: Ease.outQuart,
+			onComplete: () => {
+				if (!props.playing && speed.value <= 0.001) stopSpin()
+			}
+		})
+	})
+
+	watch(() : number => props.progress, () => {
+		if (!props.playing) return
+		tweenRef(tonearmRot, tonearmTarget(), {
+			duration: 220,
+			ease: Ease.inOutQuad,
+			onComplete: null
+		})
+	})
+
+	/* 换歌：cover 淡出 → 减速 → 换图 → 加速 + 淡入 */
+	watch(() : string => props.cover, (newCover : string) => {
+		if (newCover == prevCover) return
+		startSpin()
+		// 旋转减速
+		tweenRef(speed, 0, { duration: 320, ease: Ease.outQuart, onComplete: null })
+		// cover 淡出 320ms 后会自然换 image（vue 已经把 src 换了），同步淡出再淡入
+		tweenRef(coverOpacity, 0.15, {
+			duration: 280, ease: Ease.inOutQuad,
+			onComplete: () => {
+				prevCover = newCover
+				tweenRef(coverOpacity, 1, { duration: 420, ease: Ease.outQuart, onComplete: null })
+				// 如果在播放状态，恢复速度
+				if (props.playing) {
+					tweenRef(speed, 1, { duration: 600, ease: Ease.outBack, onComplete: null })
+				}
+			}
+		})
+	})
+
+	onMounted(() => {
+		if (props.playing) startSpin()
+	})
+	onUnmounted(() => {
+		stopSpin()
+	})
+
+	function onTap() {
+		tweenRef(pressScale, 0.94, { duration: 110, ease: Ease.outQuart, onComplete: () => {
+			tweenRef(pressScale, 1, { duration: 320, ease: Ease.outBack, onComplete: null })
+		} })
+		tapHaptic()
+		emit('toggle')
+	}
+</script>
+
+<style>
+	.wrap {
+		width: 480rpx;
+		height: 480rpx;
+		align-items: center;
+		justify-content: center;
+		position: relative;
+	}
+	.ring {
+		position: absolute;
+		border-radius: 50%;
+		border-width: 2px;
+		border-style: solid;
+		border-color: rgba(255, 255, 255, 0.18);
+	}
+	.ring-outer {
+		left: -56rpx; right: -56rpx; top: -56rpx; bottom: -56rpx;
+	}
+	.ring-inner {
+		left: -20rpx; right: -20rpx; top: -20rpx; bottom: -20rpx;
+		border-color: rgba(255, 255, 255, 0.4);
+	}
+	.disc {
+		width: 480rpx;
+		height: 480rpx;
+		border-radius: 50%;
+		border-width: 8px;
+		border-color: rgba(255, 255, 255, 0.55);
+		overflow: hidden;
+		align-items: center;
+		justify-content: center;
+		background-color: #1B4965;
+	}
+	.cover-box { width: 100%; height: 100%; }
+	.hole {
+		position: absolute;
+		width: 52rpx;
+		height: 52rpx;
+		border-radius: 50%;
+		background-color: #E0F7FA;
+		border-width: 4px;
+		border-color: #1B4965;
+	}
+	/* 唱针：右上方为旋转中心（base），针沿对角线伸到唱片表面 */
+	.tonearm {
+		position: absolute;
+		top: -20rpx;
+		right: -20rpx;
+		width: 180rpx;
+		height: 180rpx;
+		transform-origin: 100% 0%;
+	}
+	.tonearm-base {
+		position: absolute;
+		top: 0;
+		right: 0;
+		width: 32rpx;
+		height: 32rpx;
+		border-radius: 50%;
+		background-color: #1B4965;
+	}
+	.tonearm-stick {
+		position: absolute;
+		top: 16rpx;
+		right: 16rpx;
+		width: 156rpx;
+		height: 10rpx;
+		border-radius: 3px;
+		background-color: #1B4965;
+		transform: rotate(45deg);
+		transform-origin: 100% 50%;
+	}
+	.tonearm-head {
+		position: absolute;
+		bottom: 8rpx;
+		left: 8rpx;
+		width: 28rpx;
+		height: 28rpx;
+		border-radius: 4px;
+		background-color: #1B4965;
+	}
+</style>

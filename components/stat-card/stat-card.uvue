@@ -1,0 +1,84 @@
+<template>
+	<view class="stat" :style="entryStyle">
+		<glass-panel rounded="r-md" variant="soft" pad="p-md">
+			<view class="head">
+				<text class="icon" :style="'color:' + color">{{ icon }}</text>
+				<text class="label">{{ label }}</text>
+			</view>
+			<view class="value-row">
+				<text class="value">{{ val }}</text>
+				<text class="unit">{{ unit }}</text>
+			</view>
+		</glass-panel>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, onMounted } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+
+	const props = defineProps({
+		label: { type: String, required: true },
+		val: { type: String, required: true },
+		unit: { type: String, default: '' },
+		icon: { type: String, default: '' },
+		color: { type: String, default: '#1B4965' },
+		delay: { type: Number, default: 0 }
+	})
+
+	const opacity = ref(0)
+	const offsetY = ref(40)
+	const scale = ref(0.92)
+
+	const entryStyle = computed<string>(() : string => {
+		return 'opacity:' + opacity.value
+			+ ';transform: translateY(' + offsetY.value + 'px) scale(' + scale.value + ')'
+	})
+
+	onMounted(() => {
+		setTimeout(() => {
+			tweenRef(opacity, 1, { duration: 480, ease: Ease.outQuart, onComplete: null })
+			tweenRef(offsetY, 0, { duration: 520, ease: Ease.outBack,  onComplete: null })
+			tweenRef(scale,   1, { duration: 520, ease: Ease.outBack,  onComplete: null })
+		}, props.delay)
+	})
+</script>
+
+<style>
+	.stat {
+		width: 48%;
+		margin-bottom: 14px;
+	}
+	.head {
+		flex-direction: row;
+		align-items: center;
+		margin-bottom: 8px;
+	}
+	.icon {
+		font-size: 18px;
+		margin-right: 8px;
+	}
+	.label {
+		font-size: 10px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 1px;
+	}
+	.value-row {
+		flex-direction: row;
+		align-items: flex-end;
+	}
+	.value {
+		font-size: 24px;
+		font-weight: bold;
+		color: #1B4965;
+	}
+	.unit {
+		font-size: 9px;
+		color: rgba(27, 73, 101, 0.45);
+		margin-left: 6px;
+		margin-bottom: 4px;
+		letter-spacing: 2px;
+	}
+</style>

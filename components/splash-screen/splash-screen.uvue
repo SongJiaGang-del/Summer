@@ -1,0 +1,123 @@
+<template>
+	<view v-if="rendered" class="splash" :style="rootStyle">
+		<text class="brand" :style="brandStyle">夏日律动</text>
+		<text class="sub" :style="subStyle">SUMMER · BEATS</text>
+		<!-- 上升气泡：用 index 索引避免 v-for 解包 Ref 问题 -->
+		<view v-for="(m, i) in metas" :key="m.id" class="bubble"
+			:style="bubbleStyle(i)"></view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, onMounted, type Ref } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+
+	const emit = defineEmits(['done'])
+
+	type BubbleMeta = {
+		id : number,
+		left : number, // %
+		size : number  // px
+	}
+
+	const rendered = ref(true)
+	const rootOpacity = ref(1)
+	const brandOpacity = ref(0)
+	const brandY = ref(20)
+	const subOpacity = ref(0)
+
+	const metas = ref<BubbleMeta[]> ([])
+	// 平行 ref 数组：避免在数据结构里嵌套 Ref
+	const ys : Ref<number>[] = []
+	const opacities : Ref<number>[] = []
+
+	const rootStyle  = computed<string>(() : string => 'opacity:' + rootOpacity.value)
+	const brandStyle = computed<string>(() : string =>
+		'opacity:' + brandOpacity.value + ';transform: translateY(' + brandY.value + 'px)')
+	const subStyle   = computed<string>(() : string => 'opacity:' + subOpacity.value)
+
+	function bubbleStyle(i : number) : string {
+		const m = metas.value[i]
+		return 'left:' + m.left + '%;width:' + m.size + 'px;height:' + m.size
+			+ 'px;opacity:' + opacities[i].value
+			+ ';transform: translateY(' + ys[i].value + 'px)'
+	}
+
+	onMounted(() => {
+		// 生成 8 个气泡
+		const arr : BubbleMeta[] = []
+		for (let i = 0; i < 8; i++) {
+			arr.push({
+				id: i,
+				left: 10 + Math.random() * 80,
+				size: 12 + Math.random() * 28
+			})
+			ys.push(ref(80))
+			opacities.push(ref(0))
+		}
+		metas.value = arr
+
+		// 标题入场
+		tweenRef(brandOpacity, 1, { duration: 500, ease: Ease.outQuart, onComplete: null })
+		tweenRef(brandY, 0, { duration: 600, ease: Ease.outBack, onComplete: null })
+		setTimeout(() => {
+			tweenRef(subOpacity, 0.6, { duration: 400, ease: Ease.outQuart, onComplete: null })
+		}, 280)
+
+		// 气泡错峰上升
+		for (let i = 0; i < 8; i++) {
+			const idx = i
+			setTimeout(() => {
+				tweenRef(opacities[idx], 0.5, { duration: 300, ease: Ease.outQuart, onComplete: null })
+				tweenRef(ys[idx], -260 - Math.random() * 80, {
+					duration: 1400 + Math.random() * 400, ease: Ease.outQuart,
+					onComplete: () => {
+						tweenRef(opacities[idx], 0, { duration: 200, ease: Ease.linear, onComplete: null })
+					}
+				})
+			}, idx * 80)
+		}
+
+		// 整屏淡出
+		setTimeout(() => {
+			tweenRef(rootOpacity, 0, {
+				duration: 500, ease: Ease.inOutQuad,
+				onComplete: () => {
+					rendered.value = false
+					emit('done')
+				}
+			})
+		}, 1600)
+	})
+</script>
+
+<style>
+	.splash {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: #1B4965;
+		align-items: center;
+		justify-content: center;
+		z-index: 200;
+	}
+	.brand {
+		font-size: 36px;
+		font-weight: bold;
+		color: #ffffff;
+		letter-spacing: 4px;
+	}
+	.sub {
+		font-size: 10px;
+		color: rgba(255, 255, 255, 0.6);
+		font-weight: bold;
+		letter-spacing: 6px;
+		margin-top: 14px;
+	}
+	.bubble {
+		position: absolute;
+		bottom: 0;
+		border-radius: 50%;
+		background-color: rgba(174, 239, 240, 0.4);
+	}
+</style>

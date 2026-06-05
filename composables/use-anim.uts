@@ -1,0 +1,98 @@
+/**
+ * 动效 composables 集合
+ *
+ * - tweenRef          数值 ref 直接 tween（最常用）
+ * - tweenColor        RGB ref 颜色过渡
+ * - useScrollAnim     scrollTop → 任意属性映射（ScrollTrigger 平替）
+ * - useStaggerEntry   错峰入场（stagger）
+ */
+
+import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import { tween, delay, type TweenHandle } from '@/utils/tween.uts'
+import { Ease, type EaseFn } from '@/utils/ease.uts'
+import { hexToRgb, mixRgb, type RGB } from '@/utils/color.uts'
+
+export type AnimateOpts = {
+	duration : number,
+	ease : EaseFn | null,
+	onComplete : (() => void) | null
+}
+
+/* ───── 打断索引 ─────
+ * 同一个 ref 上的活跃 tween 必须先 cancel，避免多个 setInterval 抢写同一个值（闪烁/抖动）。
+ * 用 Map 按 ref 引用做 key 索引。uts 的 Map 支持对象引用做 key。 */
+const activeNumberTweens : Map<Ref<number>, TweenHandle> = new Map()
+const activeColorTweens : Map<Ref<RGB>, TweenHandle> = new Map()
+
+export function tweenRef(target : Ref<number>, to : number, opts : AnimateOpts) : TweenHandle {
+	const old = activeNumberTweens.get(target)
+	if (old != null) old!.cancel()
+
+	const userComplete = opts.onComplete
+	const handle = tween({
+		from: target.value,
+		to: to,
+		duration: opts.duration,
+		ease: opts.ease,
+		onUpdate: (v : number) => { target.value = v },
+		onComplete: () => {
+			activeNumberTweens.delete(target)
+			if (userComplete != null) userComplete!()
+		}
+	})
+	activeNumberTweens.set(target, handle)
+	return handle
+}
+
+export function tweenColor(target : Ref<RGB>, toHex : string, duration : number) : TweenHandle {
+	const old = activeColorTweens.get(target)
+	if (old != null) old!.cancel()
+
+	const fromR = target.value.r
+	const fromG = target.value.g
+	const fromB = target.value.b
+	const to = hexToRgb(toHex)
+	const handle = tween({
+		from: 0,
+		to: 1,
+		duration: duration,
+		ease: Ease.inOutQuad,
+		onUpdate: (t : number) => {
+			target.value = {
+				r: fromR + (to.r - fromR) * t,
+				g: fromG + (to.g - fromG) * t,
+				b: fromB + (to.b - fromB) * t
+			}
+		},
+		onComplete: () => {
+			activeColorTweens.delete(target)
+		}
+	})
+	activeColorTweens.set(target, handle)
+	return handle
+}
+
+/**
+ * scrollTop ∈ [inMin, inMax] → [outMin, outMax]，钳制 + 缓动
+ * 用法：
+ *   const opacity = useScrollAnim(scrollTop, 0, 200, 1, 0.2, Ease.outQuart)
+ */
+export function useScrollAnim(
+	source : Ref<number>,
+	inMin : number,
+	inMax : number,
+	outMin : number,
+	outMax : number,
+	ease : EaseFn | null = null
+) : ComputedRef<number> {
+	return computed<number>(() : number => {
+		const span = inMax - inMin
+		let t = span == 0 ? 0 : (source.value - inMin) / span
+		if (t < 0) t = 0
+		if (t > 1) t = 1
+		const eased = ease != null ? ease!(t) : t
+		return outMin + (outMax - outMin) * eased
+	})
+}
+
+// useStaggerEntry 已移除；组件内手写 setTimeout 错峰 + tweenRef 模式更直观
