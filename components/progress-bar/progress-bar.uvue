@@ -8,10 +8,10 @@
 			<view class="fill" :style="fillStyle">
 				<view class="shine"></view>
 			</view>
-			<view class="thumb" :style="thumbStyle"></view>
+			<view v-if="ready" class="thumb" :style="thumbStyle"></view>
 		</view>
 		<view v-if="dragging" class="bubble" :style="bubbleStyle">
-			<text class="bubble-text">{{ formatTime(percent) }} / {{ formatTime(100) }}</text>
+			<text class="bubble-text">{{ ready ? (formatTime(percent) + ' / ' + formatTime(100)) : '--:-- / --:--' }}</text>
 		</view>
 	</view>
 </template>
@@ -31,7 +31,9 @@
 	const barLeft = ref(0)
 	const barWidth = ref(1)
 
-	const fillStyle = computed<string>(() : string => 'width:' + props.percent + '%')
+	// 音频未加载（duration<=0）时进度条只显示空轨，不显示 thumb / 真实时间
+	const ready = computed<boolean>(() : boolean => props.duration > 0)
+	const fillStyle = computed<string>(() : string => 'width:' + (ready.value ? props.percent : 0) + '%')
 	const thumbStyle = computed<string>(() : string => 'left:' + props.percent + '%')
 	const bubbleStyle = computed<string>(() : string => 'left:' + props.percent + '%')
 

@@ -4,31 +4,42 @@
 		<view class="status-bar" :style="statusBarStyle"></view>
 
 		<!-- 顶部状态栏 -->
-		<app-header :title="pageTitle" :moodEmoji="currentMoodEmoji" :moodId="dominantMoodId" @mixer="onMixer"></app-header>
+		<app-header :title="pageTitle" :moodIconName="currentMoodIconName" :moodId="dominantMoodId" @mixer="onMixer"></app-header>
 
 		<!-- 页面内容 -->
 		<view class="body" :style="pageStyle">
 			<!-- 页 1: 律动 -->
-			<scroll-view v-show="renderedIndex == 0" class="page" :scroll-y="true">
+			<view v-show="renderedIndex == 0" class="page">
 				<view class="beats">
+					<view class="beats-toolbar">
+						<view class="help-btn" @click="onShowGuide">
+							<icon-question :size="17" color="#1B4965"></icon-question>
+						</view>
+					</view>
 					<view class="vinyl-row">
+						<view class="vinyl-side-btn vinyl-prev" @click="onPrev">
+							<icon-prev :size="22" color="#1B4965"></icon-prev>
+						</view>
 						<view class="vinyl-touch"
 						@touchstart="onVinylTouchStart"
 						@touchmove="onVinylTouchMove"
 						@touchend="onVinylTouchEnd"
 						@touchcancel="onVinylTouchEnd">
-						<vinyl-disc v-bind:cover="currentSong.cover" v-bind:fallback-image="currentSong.fallbackImage" v-bind:playing="state.isPlaying" v-bind:progress="state.progress" @toggle="onTogglePlay"></vinyl-disc>
+						<vinyl-disc v-bind:cover="currentSong.cover" v-bind:fallback-image="currentSong.fallbackImage" v-bind:playing="state.isPlaying" v-bind:progress="state.progress" v-bind:buffering="state.audioLoading"></vinyl-disc>
 						<view v-if="showVolumeHint" class="volume-hint">
 							<text class="volume-hint-text">上下滑动黑胶调音量</text>
 						</view>
 					</view>
+						<view class="vinyl-side-btn vinyl-next" @click="onNext">
+							<icon-next :size="22" color="#1B4965"></icon-next>
+						</view>
 					</view>
 					<view class="song-meta">
 						<text class="song-title">{{ currentSong.title }}</text>
 						<text class="song-artist">{{ currentSong.artist }}</text>
 					</view>
 					<view class="lyrics-wrap">
-						<lyrics-scroll v-bind:lines="currentSong.lyrics" v-bind:current-index="currentLyricIndex" @seek="onSeekLyric"></lyrics-scroll>
+						<lyrics-scroll v-bind:lines="currentSong.lyrics" v-bind:lyric-times="currentSong.lyricTimes" v-bind:current-index="currentLyricIndex" v-bind:playing="state.isPlaying" @seek="onSeekLyric"></lyrics-scroll>
 					</view>
 					<view class="progress-wrap">
 						<progress-bar
@@ -38,39 +49,52 @@
 							@dragstart="onSeekStart"
 							@dragend="onSeekEnd">
 						</progress-bar>
+						<view class="track-time-row">
+							<text class="track-time">{{ trackTimeText }}</text>
+						</view>
 					</view>
 					<view class="mood-wrap">
 						<mood-selector :moods="moods" :active="state.moodId" @change="onMoodChange"></mood-selector>
 					</view>
 				</view>
-			</scroll-view>
+			</view>
 
 			<!-- 页 2: 发现 -->
 			<scroll-view v-show="renderedIndex == 1" class="page" :scroll-y="true">
 				<view class="discover">
 					<view class="search">
-						<text class="search-icon">🔍</text>
+						<view class="search-icon">
+							<icon-search :size="15" color="rgba(27, 73, 101, 0.45)"></icon-search>
+						</view>
 						<input
 							class="search-input"
 							v-model="searchKeyword"
 							placeholder="寻找你的夏日主打歌..."
 							placeholder-class="search-placeholder" />
 						<view v-if="hasSearchKeyword" class="search-clear" @click="onClearSearch">
-							<text class="search-clear-text">×</text>
+							<icon-cross :size="14" color="rgba(27, 73, 101, 0.45)"></icon-cross>
 						</view>
 					</view>
+					<view class="upload-btn" @click="onUploadSong">
+						<icon-upload :size="17" color="#ffffff"></icon-upload>
+						<text class="upload-btn-text">上传音乐</text>
+						<text class="upload-btn-sub">MP3 / WAV / M4A / AAC</text>
+					</view>
+					<text v-if="userSongs.length > 0" class="upload-hint">长按你上传的歌可重命名或删除</text>
+
 					<text class="section-title">场景传送门</text>
-					<scroll-view class="scenes" :scroll-x="true" :show-scrollbar="false">
-						<view class="scenes-row">
-							<scene-card
-								v-for="cat in categories"
-								:key="cat.id"
-								:name="cat.name"
-								:image="cat.image"
-								:fallbackImage="cat.fallbackImage"
-								@enter="onEnterPortal(cat)">
-							</scene-card>
-						</view>
+					<scroll-view
+						class="scenes"
+						direction="horizontal"
+						:show-scrollbar="false">
+						<scene-card
+							v-for="cat in categories"
+							:key="cat.id"
+							:name="cat.name"
+							:image="cat.image"
+							:fallbackImage="cat.fallbackImage"
+							@enter="onEnterPortal(cat)">
+						</scene-card>
 					</scroll-view>
 					<view class="section-row">
 						<text class="section-title section-title-inline">漂流瓶</text>
@@ -78,10 +102,11 @@
 							<text class="throw-btn-text">投瓶</text>
 						</view>
 					</view>
-					<view v-if="bottles.length > 0" class="bottles">
+						<view v-if="bottles.length > 0" class="bottles">
 						<view v-for="b in bottles" :key="b.id" class="bottle" @click="onOpenBottle(b)">
-							<text class="bottle-emoji">🍾</text>
+							<icon-bottle :size="15" color="#1B4965"></icon-bottle>
 							<text class="bottle-text">{{ b.message.substring(0, 14) }}...</text>
+							<text v-if="b.replies.length > 0" class="reply-badge">{{ b.replies.length }} 条回复</text>
 						</view>
 					</view>
 					<view v-else class="bottle-empty">
@@ -98,8 +123,10 @@
 							:artist="song.artist"
 							:cover="song.cover"
 							v-bind:fallback-image="song.fallbackImage"
+							v-bind:duration="song.duration"
 							v-bind:delay="100 + idx * 80"
-							@play="onPlayDisplaySong(song)">
+							@play="onPlayDisplaySong(song)"
+							@longpress="onLongPressSong(song)">
 						</album-card>
 					</view>
 					<view v-else class="empty-search">
@@ -115,9 +142,9 @@
 					<island-core v-bind:level="playerLevel" v-bind:exp-percent="levelExpPercent" v-bind:title="levelTitle"></island-core>
 					<view class="stats-grid">
 						<stat-card label="总播放时长" v-bind:val="playTimeText" unit="小时 / 分钟"
-							icon="🌊" color="#3B82F6" v-bind:delay="600"></stat-card>
+							iconName="duration" color="#3B82F6" v-bind:delay="600"></stat-card>
 						<stat-card label="听过歌曲" v-bind:val="uniqueSongCount + ''" unit="首歌"
-							icon="💗" color="#EC4899" v-bind:delay="700"></stat-card>
+							iconName="song-list" color="#EC4899" v-bind:delay="700"></stat-card>
 					</view>
 					<text class="dna-title">音乐画像</text>
 					<glass-panel v-if="hasAnyPlay" rounded="r-lg" variant="medium" pad="p-lg" class="dna-panel">
@@ -134,6 +161,33 @@
 						<text class="dna-empty-text">还没开始听歌</text>
 						<text class="dna-empty-hint">播放一首歌即可解锁你的画像</text>
 					</glass-panel>
+					<view v-if="hasAnyPlay" class="insight-grid">
+						<glass-panel rounded="r-md" variant="soft" pad="p-md" class="insight-card">
+							<text class="insight-label">最常听的时段</text>
+							<text class="insight-value">{{ peakHourText }}</text>
+							<text class="insight-sub">这段时间最像你的夏天</text>
+						</glass-panel>
+						<glass-panel rounded="r-md" variant="soft" pad="p-md" class="insight-card">
+							<text class="insight-label">单曲循环 Top3</text>
+							<text v-if="topLoopSongs.length == 0" class="insight-sub">再多听几首就会出现</text>
+							<text v-for="song in topLoopSongs" :key="song.title" class="top-song">{{ song.title }} · {{ song.count }} 次</text>
+						</glass-panel>
+					</view>
+					<view v-if="hasAnyPlay" class="spirit-card" :style="spiritStyle">
+						<text class="spirit-label">夏日精神动物</text>
+						<text class="spirit-name">{{ spiritAnimal.name }}</text>
+						<text class="spirit-desc">{{ spiritAnimal.desc }}</text>
+					</view>
+
+					<!-- 报告 + 存档操作 -->
+					<view class="island-actions">
+						<view class="island-action primary" @click="onShowReport">
+							<text class="island-action-text primary-text">生成我的夏日报告</text>
+						</view>
+						<view class="island-action" @click="onShowArchive">
+							<text class="island-action-text">存档管理</text>
+						</view>
+					</view>
 				</view>
 			</scroll-view>
 		</view>
@@ -145,9 +199,12 @@
 					:title="currentSong.title"
 					:artist="currentSong.artist"
 					v-bind:playing="state.isPlaying"
+					v-bind:progress="state.progress"
+					:color="dominantMoodColor"
 					@toggle="onTogglePlay"
 					@prev="onPrev"
-					@next="onNext">
+					@next="onNext"
+					@expand="onExpandPlayer">
 				</mini-player>
 			</view>
 		<bottom-nav v-bind:items="navs" v-bind:active="selectedIndex" @change="onNavChange"></bottom-nav>
@@ -171,6 +228,85 @@
 			:bottle="state.activeBottle"
 			@close="onCloseBottle">
 		</bottle-modal>
+
+		<!-- 夏日报告卡片 -->
+		<summer-report
+			v-bind:visible="showReport"
+			v-bind:level="playerLevel"
+			:title="levelTitle"
+			:play-time-text="playTimeText"
+			v-bind:song-count="uniqueSongCount"
+			:mood-label-text="dominantMoodLabel"
+			:tagline="reportTagline"
+			@close="showReport = false">
+		</summer-report>
+
+		<!-- 存档管理弹层 -->
+		<view v-if="showArchive" class="archive-mask" @click="onHideArchive">
+			<view class="archive-card" @click.stop="noop">
+				<text class="archive-title">存档管理</text>
+				<text class="archive-sub">导出后复制保存，换设备粘贴即可迁移</text>
+				<view class="archive-btn" @click="onExportArchive">
+					<text class="archive-btn-text">导出存档到剪贴板</text>
+				</view>
+				<textarea
+					class="archive-input"
+					v-model="archiveDraft"
+					placeholder="把导出的存档粘贴到这里，点击导入..."
+					placeholder-class="archive-placeholder" />
+				<view class="archive-actions">
+					<view class="archive-secondary" @click="onHideArchive">
+						<text class="archive-secondary-text">关闭</text>
+					</view>
+					<view class="archive-primary" @click="onImportArchive">
+						<text class="archive-primary-text">导入存档</text>
+					</view>
+				</view>
+				<view class="archive-selftest" @click="goSelfTest">
+					<icon-gear :size="14" color="rgba(27, 73, 101, 0.45)"></icon-gear>
+					<text class="archive-selftest-text">运行逻辑自检</text>
+				</view>
+			</view>
+		</view>
+
+		<!-- 升级庆祝层 -->
+		<view v-if="showLevelUp" class="levelup-mask" :style="levelUpMaskStyle">
+			<view class="levelup-card" :style="levelUpCardStyle">
+				<icon-confetti :size="52" color="#FF8577"></icon-confetti>
+				<text class="levelup-lv">LV.{{ levelUpTo }}</text>
+				<text class="levelup-title">{{ levelUpTitle }}</text>
+				<text class="levelup-sub">你的小岛又长大了一点</text>
+			</view>
+		</view>
+
+		<!-- 手势说明弹层 -->
+		<view v-if="showGuide" class="guide-mask" @click="onHideGuide">
+			<view class="guide-card" @click.stop="noop">
+				<text class="guide-title">夏日手势</text>
+				<view class="guide-dots">
+					<view class="guide-dot" :class="{ active: guideStep == 0 }"></view>
+					<view class="guide-dot" :class="{ active: guideStep == 1 }"></view>
+					<view class="guide-dot" :class="{ active: guideStep == 2 }"></view>
+				</view>
+				<view class="guide-row">
+					<icon-disc v-if="guideStep == 0" :size="28" color="#1B4965"></icon-disc>
+					<icon-swipe-vertical v-else-if="guideStep == 1" :size="28" color="#1B4965"></icon-swipe-vertical>
+					<icon-next v-else :size="28" color="#1B4965"></icon-next>
+					<view class="guide-texts">
+						<text class="guide-name">{{ guideName }}</text>
+						<text class="guide-desc">{{ guideDesc }}</text>
+					</view>
+				</view>
+				<view class="guide-actions">
+					<view class="guide-skip" @click="onHideGuide">
+						<text class="guide-skip-text">跳过</text>
+					</view>
+					<view class="guide-close" @click="onNextGuideStep">
+						<text class="guide-close-text">{{ guideStep >= 2 ? '开始夏天' : '下一步' }}</text>
+					</view>
+				</view>
+			</view>
+		</view>
 
 		<!-- 投瓶弹层 -->
 		<view v-if="showBottleComposer" class="composer-mask" @click="onHideBottleComposer">
@@ -201,19 +337,33 @@
 	import { onShow } from '@dcloudio/uni-app'
 	import {
 		state, currentSong, currentLyricIndex, bgColor, showMixer,
-		playlist, moods, categories, bottles, navs,
+		playlist, moods, categories, bottles, navs, userSongs,
 		playerLevel, levelExpPercent, levelTitle, vibeDnasComputed,
 		totalPlayMinutes, uniqueSongCount, personalizedPlaylist, dominantMoodId,
+		dominantMoodLabel, reportTagline, peakHourText, topLoopSongs, spiritAnimal,
+		levelUpEvent, levelUpTo, titleForLevel,
 		togglePlay, setMood, playSong, nextSong, prevSong, setVolume,
 		seekToLyric, previewSeek, beginSeekDrag, endSeekDrag,
-		openBottle, closeBottle, toggleMixer, resumeActiveAmbients, addBottle,
+		openBottle, closeBottle, toggleMixer, resumeActiveAmbients, addBottle, addUserSong,
+		removeUserSong, renameUserSong,
 		type Bottle, type Mood, type Song, type Category
 	} from '@/store/player.uts'
 	import { tweenRef } from '@/composables/use-anim.uts'
 	import { Ease } from '@/utils/ease.uts'
 	import { rgbToCss } from '@/utils/color.uts'
 	import { tapHaptic } from '@/utils/haptic.uts'
-	import { loadStr, saveStr, K } from '@/utils/storage.uts'
+	import { loadStr, saveStr, K, exportArchive, importArchive } from '@/utils/storage.uts'
+	import IconQuestion from '@/components/icons/icon-question.uvue'
+	import IconPrev from '@/components/icons/icon-prev.uvue'
+	import IconNext from '@/components/icons/icon-next.uvue'
+	import IconSearch from '@/components/icons/icon-search.uvue'
+	import IconBottle from '@/components/icons/icon-bottle.uvue'
+	import IconGear from '@/components/icons/icon-gear.uvue'
+	import IconConfetti from '@/components/icons/icon-confetti.uvue'
+	import IconCross from '@/components/icons/icon-cross.uvue'
+	import IconUpload from '@/components/icons/icon-upload.uvue'
+	import IconDisc from '@/components/icons/icon-disc.uvue'
+	import IconSwipeVertical from '@/components/icons/icon-swipe-vertical.uvue'
 
 	/* ───── 双指针：selected 立即响应点击，rendered 经动画后切换 ───── */
 	const selectedIndex = ref(0)
@@ -266,11 +416,16 @@
 	function onSeekProgress(p : number) { previewSeek(p) }
 	function onSeekStart() { beginSeekDrag() }
 	function onSeekEnd() { endSeekDrag() }
+	function onExpandPlayer() { state.activePageIndex = 0 }
 	function onPlaySong(idx : number) {
 		playSong(idx)
 		selectedIndex.value = 0 // 触发动画回到律动页
 	}
-	const showSplash = ref(true)
+	// 首次启动显示 splash（保留仪式感），之后直接跳过
+	const showSplash = ref(loadStr(K.LAUNCHED, '') != '1')
+	if (loadStr(K.LAUNCHED, '') != '1') {
+		saveStr(K.LAUNCHED, '1')
+	}
 
 	/* ───── 发现页搜索 ───── */
 	const searchKeyword = ref('')
@@ -279,8 +434,8 @@
 	const hasAnyPlay = computed<boolean>(() : boolean => totalPlayMinutes.value > 0 || uniqueSongCount.value > 0)
 	const displaySongs = computed<Song[]>(() : Song[] => {
 		const keyword = searchKeyword.value.trim().toLowerCase()
-		if (keyword == '') return personalizedPlaylist.value
-		return playlist.filter((song : Song) : boolean => {
+		if (keyword == '') return personalizedPlaylist.value.slice(0, 12)
+		return playlist.value.filter((song : Song) : boolean => {
 			const title = song.title.toLowerCase()
 			const artist = song.artist.toLowerCase()
 			return title.includes(keyword) || artist.includes(keyword)
@@ -297,8 +452,8 @@
 	}
 
 	function findSongIndex(song : Song) : number {
-		for (let i = 0; i < playlist.length; i++) {
-			const s = playlist[i]
+		for (let i = 0; i < playlist.value.length; i++) {
+			const s = playlist.value[i]
 			if (s.title == song.title && s.artist == song.artist) return i
 		}
 		return -1
@@ -308,6 +463,161 @@
 		const idx = findSongIndex(song)
 		if (idx < 0) return
 		onPlaySong(idx)
+	}
+
+	function isSupportedAudioFile(name : string, path : string) : boolean {
+		const raw = (name == '' ? path : name).toLowerCase()
+		return raw.endsWith('.mp3') || raw.endsWith('.wav') || raw.endsWith('.m4a') || raw.endsWith('.aac') || raw.endsWith('.flac') || raw.endsWith('.ogg')
+	}
+
+	/**
+	 * 拦截各平台加密音乐容器（QQ音乐 mflac/mgg/qmc、网易云 ncm、酷狗 kgm 等）。
+	 * 这些文件带 DRM，标准播放器无法解码，即使扩展名伪装成 .flac/.mp3 也播不出。
+	 */
+	function isEncryptedMusicFile(name : string) : boolean {
+		const n = name.toLowerCase()
+		return n.indexOf('.mflac') >= 0 || n.indexOf('.mgg') >= 0
+			|| n.indexOf('.qmc') >= 0 || n.indexOf('.ncm') >= 0
+			|| n.indexOf('.kgm') >= 0 || n.indexOf('.kgma') >= 0
+			|| n.indexOf('.vpr') >= 0 || n.indexOf('.xm') >= 0
+			|| n.indexOf('mflac') >= 0 || n.indexOf('mqms') >= 0
+	}
+
+	function fileNameFromPath(path : string) : string {
+		const p1 = path.lastIndexOf('/')
+		const p2 = path.lastIndexOf('\\')
+		const p = p1 > p2 ? p1 : p2
+		if (p >= 0 && p + 1 < path.length) return path.substring(p + 1)
+		return path
+	}
+
+	function extOf(name : string, path : string) : string {
+		const src = name.length > 0 ? name : path
+		const dot = src.lastIndexOf('.')
+		if (dot >= 0) return src.substring(dot)
+		return '.mp3'
+	}
+
+	/**
+	 * chooseFile 返回的是临时缓存路径，重启 / 系统清缓存后会失效。
+	 * 复制到 USER_DATA_PATH 持久目录，返回稳定路径；失败则退回临时路径（本次会话仍可播）。
+	 */
+	function persistAudioFile(tempPath : string, displayName : string) : string | null {
+		// 拼 dest：USER_DATA_PATH 末尾可能已带 '/'，先去掉再拼，避免 usr// 双斜杠被判非法
+		let base = uni.env.USER_DATA_PATH
+		while (base.endsWith('/')) base = base.substring(0, base.length - 1)
+		const dest = base + '/song_' + Date.now() + extOf(displayName, tempPath)
+		const fs = uni.getFileSystemManager()
+		console.log('[upload] persist 开始, base=' + base + ' dest=' + dest + ' src=' + tempPath)
+
+		// 优先 copyFileSync：content:// URI（Android SAF 选文件结果）只能复制不能 saveFile
+		try {
+			fs.copyFileSync(tempPath, dest)
+			console.log('[upload] persist 成功(copyFileSync), dest=' + dest)
+			return dest
+		} catch (e1) {
+			console.error('[upload] copyFileSync 失败, err=' + e1)
+		}
+
+		// 退路：saveFileSync（适用于真实临时文件路径的场景）
+		try {
+			const saved = fs.saveFileSync(tempPath, dest)
+			console.log('[upload] persist 成功(saveFileSync), saved=' + saved)
+			return saved
+		} catch (e2) {
+			console.error('[upload] saveFileSync 也失败, err=' + e2)
+		}
+
+		console.warn('[upload] persist 全部失败，拒绝加入不可持久访问的路径=' + tempPath)
+		uni.showToast({ title: '保存到本地失败，请换一个音频文件', icon: 'none' })
+		return null
+	}
+
+	function onUploadSong() {
+		console.log('[upload] onUploadSong 触发，准备 chooseFile')
+		uni.chooseFile({
+			count: 1,
+			type: 'audio',
+			success: (res : ChooseFileSuccess) => {
+				console.log('[upload] chooseFile 成功, tempFiles.length=' + res.tempFiles.length)
+				if (res.tempFiles.length == 0) {
+					console.warn('[upload] tempFiles 为空')
+					uni.showToast({ title: '没有选择音频文件', icon: 'none' })
+					return
+				}
+				const file : ChooseFileTempFile = res.tempFiles[0]
+				const path = file.path
+				console.log('[upload] 选中文件 path=' + path + ' name=' + file.name + ' size=' + file.size + ' type=' + file.type)
+				let name = fileNameFromPath(path)
+				if (file.name.length > 0) name = file.name
+				if (isEncryptedMusicFile(name)) {
+					console.warn('[upload] 加密音乐文件被拦截, name=' + name)
+					uni.showToast({ title: '这是加密音乐(QQ/网易云等)，无法播放，请选普通 mp3', icon: 'none' })
+					return
+				}
+				if (!isSupportedAudioFile(name, path)) {
+					console.warn('[upload] 扩展名不支持, name=' + name + ' path=' + path)
+					uni.showToast({ title: '仅支持 mp3、wav 等音频', icon: 'none' })
+					return
+				}
+				// 复制到持久目录，避免重启后临时路径失效
+				const stablePath = persistAudioFile(path, name)
+				if (stablePath == null) return
+				console.log('[upload] 即将 addUserSong, title=' + name + ' url=' + stablePath)
+				const ok = addUserSong({ title: name, audioUrl: stablePath })
+				console.log('[upload] addUserSong 返回 ' + ok)
+			},
+			fail: (err : ChooseFileFail) => {
+				// 把完整错误打到终端，cancel 不弹 toast 但仍打印
+				console.error('[upload] chooseFile 失败, errMsg=' + err.errMsg)
+				const msg = err.errMsg
+				if (msg.indexOf('cancel') >= 0 || msg.indexOf('取消') >= 0) return
+				uni.showToast({ title: '选择音乐失败：' + msg, icon: 'none' })
+			}
+		})
+	}
+
+	/* ───── 长按歌曲：仅本地上传的歌可重命名 / 删除 ───── */
+	function isUserSong(song : Song) : boolean {
+		return userSongs.value.find((s : Song) : boolean => s.audioUrl == song.audioUrl) != null
+	}
+	function doDeleteUserSong(song : Song) {
+		uni.showModal({
+			title: '删除上传',
+			content: '确定删除「' + song.title + '」？文件会从本地移除，不可恢复。',
+			confirmText: '删除',
+			confirmColor: '#FB7185',
+			success: (res) => {
+				if (res.confirm) removeUserSong(song.audioUrl)
+			}
+		})
+	}
+	function doRenameUserSong(song : Song) {
+		uni.showModal({
+			title: '重命名',
+			editable: true,
+			content: song.title,
+			placeholderText: '输入新的歌曲名',
+			success: (res) => {
+				if (res.confirm) {
+					const nextTitle = res.content
+					if (nextTitle != null) renameUserSong(song.audioUrl, nextTitle)
+				}
+			}
+		})
+	}
+	function onLongPressSong(song : Song) {
+		if (!isUserSong(song)) {
+			uni.showToast({ title: '内置歌曲不可删除', icon: 'none' })
+			return
+		}
+		uni.showActionSheet({
+			itemList: ['重命名', '删除'],
+			success: (res) => {
+				if (res.tapIndex == 0) doRenameUserSong(song)
+				else if (res.tapIndex == 1) doDeleteUserSong(song)
+			}
+		})
 	}
 
 	/* ───── 安全区适配：状态栏高度 + 底部 home indicator ───── */
@@ -324,9 +634,29 @@
 		if (h > 0) return h + 'h ' + min + 'm'
 		return min + 'm'
 	})
-	const currentMoodEmoji = computed<string>(() : string => {
+	function formatTrackSecond(value : number) : string {
+		let sec = Math.floor(value)
+		if (sec < 0) sec = 0
+		const m = Math.floor(sec / 60)
+		const s = sec - m * 60
+		return m + ':' + (s < 10 ? '0' + s : '' + s)
+	}
+	const trackTimeText = computed<string>(() : string => {
+		const total = state.duration > 0 ? state.duration : currentSong.value.duration
+		let current = state.currentTime
+		if (total > 0 && current > total) current = total
+		return formatTrackSecond(current) + ' / ' + (total > 0 ? formatTrackSecond(total) : '--:--')
+	})
+	const currentMoodIconName = computed<string>(() : string => {
 		const m = moods.find((mm : Mood) : boolean => mm.id == state.moodId)
-		return m != null ? m!.icon : '🌊'
+		return m != null ? m!.iconName : 'wave'
+	})
+	const dominantMoodColor = computed<string>(() : string => {
+		const m = moods.find((mm : Mood) : boolean => mm.id == dominantMoodId.value)
+		return m != null ? m!.color : '#1B4965'
+	})
+	const spiritStyle = computed<string>(() : string => {
+		return 'background-color:' + spiritAnimal.value.color
 	})
 
 	/* ───── vinyl 上下滑动调音量 ───── */
@@ -335,9 +665,41 @@
 	const showVolume = ref(false)
 	const showVolumeHint = ref(false)
 	const volumeStartY = ref(0)
+	const touchStartX = ref(0)
+	const touchStartY = ref(0)
+	const touchStartTime = ref(0)
 	const volumeStartValue = ref(0)
 	const volumeIsDragging = ref(false)
 	let volumeHintTimer : number = 0
+
+	/* 手势说明 ref 提前声明，供 onMounted 内 setTimeout 闭包引用 */
+	const showGuide = ref(false)
+	const guideStep = ref(0)
+	const guideName = computed<string>(() : string => {
+		if (guideStep.value == 0) return '单击唱片'
+		if (guideStep.value == 1) return '上下滑动黑胶'
+		return '左右滑动黑胶'
+	})
+	const guideDesc = computed<string>(() : string => {
+		if (guideStep.value == 0) return '轻点一次播放或暂停，轻颤不会误触发'
+		if (guideStep.value == 1) return '纵向滑动可调节音量'
+		return '横向滑动即可上一曲或下一曲'
+	})
+	function onShowGuide() {
+		guideStep.value = 0
+		showGuide.value = true
+	}
+	function onHideGuide() {
+		showGuide.value = false
+		saveStr(K.GESTURE_SEEN, '1')
+	}
+	function onNextGuideStep() {
+		if (guideStep.value >= 2) {
+			onHideGuide()
+			return
+		}
+		guideStep.value = guideStep.value + 1
+	}
 
 	/* 进入页面后读取系统信息，把状态栏/底部安全区高度同步到 ref */
 	onMounted(() => {
@@ -363,27 +725,55 @@
 	})
 
 	function onVinylTouchStart(e : TouchEvent) {
-		volumeStartY.value = e.touches[0].clientY
+		const t = e.touches[0]
+		touchStartX.value = t.clientX
+		touchStartY.value = t.clientY
+		touchStartTime.value = Date.now()
+		volumeStartY.value = t.clientY
 		volumeStartValue.value = state.volume
 		volumeIsDragging.value = false
 	}
 	function onVinylTouchMove(e : TouchEvent) {
-		const dy = e.touches[0].clientY - volumeStartY.value
-		if (!volumeIsDragging.value && Math.abs(dy) < VOLUME_DRAG_THRESHOLD) return
+		const t = e.touches[0]
+		const dx = t.clientX - touchStartX.value
+		const dy = t.clientY - touchStartY.value
+		if (!volumeIsDragging.value && (Math.abs(dy) < VOLUME_DRAG_THRESHOLD || Math.abs(dy) <= Math.abs(dx))) return
 		volumeIsDragging.value = true
 		showVolume.value = true
-		// 向上 = 加，向下 = 减
+		// 向上 = 加，向下 = 减；拖拽中不落盘
 		const delta = -dy / VOLUME_DRAG_RANGE
-		setVolume(volumeStartValue.value + delta)
+		setVolume(volumeStartValue.value + delta, false)
 	}
-	function onVinylTouchEnd() {
+	function onVinylTouchEnd(e : TouchEvent) {
+		let endX = touchStartX.value
+		let endY = touchStartY.value
+		if (e.changedTouches.length > 0) {
+			endX = e.changedTouches[0].clientX
+			endY = e.changedTouches[0].clientY
+		}
+		const dx = endX - touchStartX.value
+		const dy = endY - touchStartY.value
+		const dt = Date.now() - touchStartTime.value
 		if (volumeIsDragging.value) {
+			// 拖拽结束，落盘一次最终音量
+			setVolume(state.volume, true)
 			// 触发指示器 1.2s 后淡出
 			showVolume.value = false
 			if (loadStr(K.VOLUME_HINT_SEEN, '') != '1') {
 				saveStr(K.VOLUME_HINT_SEEN, '1')
 				showVolumeHint.value = false
 				if (volumeHintTimer != 0) clearTimeout(volumeHintTimer)
+			}
+		} else if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+			if (dx > 0) onPrev()
+			else onNext()
+		} else {
+			const isTap = Math.abs(dx) < 6 && Math.abs(dy) < 6 && dt < 200
+			if (isTap) {
+				onTogglePlay()
+				if (loadStr(K.GESTURE_SEEN, '') != '1') {
+					setTimeout(() => { onShowGuide() }, 600)
+				}
 			}
 		}
 		volumeIsDragging.value = false
@@ -422,6 +812,64 @@
 		}
 	}
 	function noop() { /* prevent bubbling */ }
+
+	/* ───── 升级庆祝 ───── */
+	const showLevelUp = ref(false)
+	const levelUpMaskAlpha = ref(0)
+	const levelUpCardScale = ref(0.6)
+	const levelUpTitle = computed<string>(() : string => titleForLevel(levelUpTo.value, dominantMoodId.value))
+	const levelUpMaskStyle = computed<string>(() : string => 'opacity:' + levelUpMaskAlpha.value)
+	const levelUpCardStyle = computed<string>(() : string => 'transform: scale(' + levelUpCardScale.value + ')')
+
+	watch(levelUpEvent, (v : number) => {
+		if (v <= 0) return
+		showLevelUp.value = true
+		levelUpMaskAlpha.value = 0
+		levelUpCardScale.value = 0.6
+		tapHaptic()
+		tweenRef(levelUpMaskAlpha, 1, { duration: 240, ease: Ease.outQuart, onComplete: null })
+		tweenRef(levelUpCardScale, 1, { duration: 580, ease: Ease.springBouncy, onComplete: null })
+		// 2.2s 后自动淡出
+		setTimeout(() => {
+			tweenRef(levelUpMaskAlpha, 0, {
+				duration: 360, ease: Ease.inOutQuad,
+				onComplete: () => { showLevelUp.value = false }
+			})
+		}, 2200)
+	})
+
+	/* ───── 夏日报告 ───── */
+	const showReport = ref(false)
+	function onShowReport() { showReport.value = true }
+
+	/* ───── 存档管理 ───── */
+	const showArchive = ref(false)
+	const archiveDraft = ref('')
+	function onShowArchive() {
+		archiveDraft.value = ''
+		showArchive.value = true
+	}
+	function onHideArchive() { showArchive.value = false }
+	function onExportArchive() {
+		const text = exportArchive()
+		uni.setClipboardData({
+			data: text,
+			success: () => { uni.showToast({ title: '存档已复制', icon: 'none' }) }
+		})
+	}
+	function onImportArchive() {
+		const ok = importArchive(archiveDraft.value)
+		if (ok) {
+			uni.showToast({ title: '导入成功，重启应用生效', icon: 'none' })
+			showArchive.value = false
+		} else {
+			uni.showToast({ title: '存档格式不正确', icon: 'none' })
+		}
+	}
+	function goSelfTest() {
+		showArchive.value = false
+		uni.navigateTo({ url: '/pages/dev/selftest' })
+	}
 </script>
 
 <style>
@@ -436,19 +884,52 @@
 		flex: 1;
 	}
 
-	/* 律动页 */
+	/* 律动页：不可滚动，内容压缩到一屏内，底部留出固定 footer 的净空 */
 	.beats {
+		flex: 1;
 		flex-direction: column;
 		align-items: center;
-		padding-top: 8px;
-		padding-bottom: 240px;
+		justify-content: center;
+		padding-top: 4px;
+		padding-bottom: 150px;
 	}
-	.vinyl-row {
+	.beats-toolbar {
+		width: 100%;
+		flex-direction: row;
+		justify-content: flex-end;
+		padding-right: 24px;
+		padding-top: 4px;
+	}
+	.help-btn {
+		width: 32px;
+		height: 32px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.32);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.45);
 		align-items: center;
 		justify-content: center;
-		margin-top: 16px;
-		margin-bottom: 24px;
 	}
+	.vinyl-row {
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		margin-top: 8px;
+		margin-bottom: 16px;
+		position: relative;
+	}
+	.vinyl-side-btn {
+		width: 44px;
+		height: 44px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.34);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.52);
+		align-items: center;
+		justify-content: center;
+	}
+	.vinyl-prev { margin-right: 10px; }
+	.vinyl-next { margin-left: 10px; }
 	.vinyl-touch {
 		align-items: center;
 		justify-content: center;
@@ -472,7 +953,7 @@
 	}
 	.song-meta {
 		align-items: center;
-		margin-bottom: 24px;
+		margin-bottom: 16px;
 	}
 	.song-title {
 		font-size: 20px;
@@ -487,13 +968,25 @@
 	}
 	.lyrics-wrap {
 		width: 100%;
-		height: 240rpx;
+		height: 200rpx;
 		overflow: hidden;
-		margin-bottom: 24px;
+		margin-bottom: 16px;
 	}
 	.progress-wrap {
 		width: 80%;
-		margin-bottom: 24px;
+		flex-direction: column;
+		margin-bottom: 16px;
+	}
+	.track-time-row {
+		width: 100%;
+		align-items: flex-end;
+		margin-top: 7px;
+	}
+	.track-time {
+		font-size: 10px;
+		font-weight: bold;
+		color: rgba(27, 73, 101, 0.45);
+		letter-spacing: 1px;
 	}
 	.mood-wrap {
 		align-items: center;
@@ -513,11 +1006,44 @@
 		background-color: rgba(255, 255, 255, 0.32);
 		border-width: 1px;
 		border-color: rgba(255, 255, 255, 0.45);
+		margin-bottom: 12px;
+	}
+	.upload-btn {
+		flex-direction: row;
+		align-items: center;
+		padding: 14px;
+		padding-left: 18px;
+		padding-right: 18px;
+		border-radius: 999px;
+		background-color: #1B4965;
 		margin-bottom: 28px;
 	}
+	.upload-btn-text {
+		color: #ffffff;
+		font-size: 12px;
+		font-weight: bold;
+		letter-spacing: 2px;
+		margin-left: 8px;
+	}
+	.upload-btn-sub {
+		color: rgba(255, 255, 255, 0.62);
+		font-size: 9px;
+		font-weight: bold;
+		letter-spacing: 1px;
+		margin-left: 10px;
+	}
+	.upload-hint {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.40);
+		letter-spacing: 1px;
+		margin-top: -16px;
+		margin-bottom: 24px;
+	}
 	.search-icon {
-		font-size: 14px;
-		color: rgba(27, 73, 101, 0.45);
+		width: 16px;
+		height: 16px;
+		align-items: center;
+		justify-content: center;
 		margin-right: 12px;
 	}
 	.search-input {
@@ -539,12 +1065,6 @@
 		align-items: center;
 		justify-content: center;
 		margin-left: 8px;
-	}
-	.search-clear-text {
-		font-size: 18px;
-		line-height: 18px;
-		color: rgba(27, 73, 101, 0.45);
-		font-weight: bold;
 	}
 	.section-title {
 		font-size: 12px;
@@ -588,10 +1108,9 @@
 	}
 	.scenes {
 		width: 100%;
+		height: 576rpx;
 		margin-bottom: 28px;
-	}
-	.scenes-row {
-		flex-direction: row;
+		/* direction="horizontal" 时 scroll-view 内部按 row 排，留个右边距 */
 		padding-right: 24px;
 	}
 	.bottles {
@@ -612,14 +1131,17 @@
 		border-width: 1px;
 		border-color: rgba(255, 255, 255, 0.45);
 	}
-	.bottle-emoji {
-		font-size: 14px;
-		margin-right: 6px;
+	.reply-badge {
+		font-size: 9px;
+		color: rgba(27, 73, 101, 0.50);
+		margin-left: 8px;
+		font-weight: bold;
 	}
 	.bottle-text {
 		font-size: 11px;
 		color: #1B4965;
 		font-weight: bold;
+		margin-left: 6px;
 	}
 	.bottle-empty {
 		padding: 24px;
@@ -690,6 +1212,83 @@
 	.dna-empty {
 		align-items: center;
 	}
+	.insight-grid {
+		flex-direction: row;
+		justify-content: space-between;
+		margin-top: 14px;
+	}
+	.insight-card {
+		width: 48%;
+	}
+	.insight-label {
+		font-size: 10px;
+		font-weight: bold;
+		color: rgba(27, 73, 101, 0.52);
+		letter-spacing: 1px;
+		margin-bottom: 8px;
+	}
+	.insight-value {
+		font-size: 20px;
+		font-weight: bold;
+		color: #1B4965;
+	}
+	.insight-sub,
+	.top-song {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.50);
+		line-height: 17px;
+		margin-top: 5px;
+	}
+	.spirit-card {
+		margin-top: 14px;
+		border-radius: 28px;
+		padding: 24px;
+	}
+	.spirit-label {
+		font-size: 10px;
+		color: rgba(255, 255, 255, 0.78);
+		font-weight: bold;
+		letter-spacing: 2px;
+	}
+	.spirit-name {
+		font-size: 28px;
+		color: #ffffff;
+		font-weight: bold;
+		margin-top: 10px;
+		line-height: 34px;
+	}
+	.spirit-desc {
+		font-size: 12px;
+		color: rgba(255, 255, 255, 0.84);
+		line-height: 20px;
+		margin-top: 10px;
+	}
+	.island-actions {
+		margin-top: 28px;
+	}
+	.island-action {
+		padding-top: 16px;
+		padding-bottom: 16px;
+		border-radius: 999px;
+		align-items: center;
+		margin-bottom: 12px;
+		background-color: rgba(255, 255, 255, 0.28);
+		border-width: 1px;
+		border-color: rgba(255, 255, 255, 0.45);
+	}
+	.island-action.primary {
+		background-color: #1B4965;
+		border-color: #1B4965;
+	}
+	.island-action-text {
+		font-size: 12px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 2px;
+	}
+	.primary-text {
+		color: #ffffff;
+	}
 	.dna-empty-text {
 		font-size: 14px;
 		font-weight: bold;
@@ -708,6 +1307,7 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
+		padding-top: 12px;
 	}
 	.flash {
 		position: fixed;
@@ -719,6 +1319,226 @@
 		padding-left: 20px;
 		padding-right: 20px;
 		padding-bottom: 12px;
+	}
+	.levelup-mask {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(27, 73, 101, 0.55);
+		align-items: center;
+		justify-content: center;
+		z-index: 140;
+	}
+	.levelup-card {
+		width: 70%;
+		background-color: rgba(255, 255, 255, 0.95);
+		border-radius: 44px;
+		padding-top: 40px;
+		padding-bottom: 40px;
+		align-items: center;
+	}
+	.levelup-lv {
+		font-size: 44px;
+		font-weight: bold;
+		color: #1B4965;
+	}
+	.levelup-title {
+		font-size: 16px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 3px;
+		margin-top: 8px;
+	}
+	.levelup-sub {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.45);
+		margin-top: 12px;
+		letter-spacing: 1px;
+	}
+	.guide-mask {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(0, 0, 0, 0.60);
+		align-items: center;
+		justify-content: center;
+		padding-left: 32px;
+		padding-right: 32px;
+		z-index: 130;
+	}
+	.guide-card {
+		width: 100%;
+		background-color: rgba(255, 255, 255, 0.95);
+		border-radius: 36px;
+		padding: 28px;
+	}
+	.guide-title {
+		font-size: 18px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 2px;
+		margin-bottom: 18px;
+	}
+	.guide-dots {
+		flex-direction: row;
+		margin-bottom: 18px;
+	}
+	.guide-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.18);
+		margin-right: 8px;
+	}
+	.guide-dot.active {
+		background-color: #1B4965;
+	}
+	.guide-row {
+		flex-direction: row;
+		align-items: center;
+		margin-bottom: 16px;
+	}
+	.guide-texts {
+		flex-direction: column;
+		flex: 1;
+		margin-left: 14px;
+	}
+	.guide-name {
+		font-size: 13px;
+		font-weight: bold;
+		color: #1B4965;
+	}
+	.guide-desc {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.45);
+		margin-top: 2px;
+	}
+	.guide-actions {
+		flex-direction: row;
+		margin-top: 8px;
+	}
+	.guide-skip,
+	.guide-close {
+		flex: 1;
+		padding-top: 16px;
+		padding-bottom: 16px;
+		border-radius: 999px;
+		align-items: center;
+	}
+	.guide-skip {
+		background-color: rgba(27, 73, 101, 0.08);
+		margin-right: 10px;
+	}
+	.guide-close {
+		background-color: #1B4965;
+		margin-left: 10px;
+	}
+	.guide-skip-text {
+		color: rgba(27, 73, 101, 0.72);
+		font-size: 12px;
+		font-weight: bold;
+		letter-spacing: 3px;
+	}
+	.guide-close-text {
+		color: #ffffff;
+		font-size: 12px;
+		font-weight: bold;
+		letter-spacing: 3px;
+	}
+	.archive-mask {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(0, 0, 0, 0.42);
+		justify-content: flex-end;
+		z-index: 125;
+	}
+	.archive-card {
+		background-color: rgba(255, 255, 255, 0.95);
+		border-top-left-radius: 44px;
+		border-top-right-radius: 44px;
+		padding: 28px;
+		padding-bottom: 44px;
+	}
+	.archive-title {
+		font-size: 18px;
+		color: #1B4965;
+		font-weight: bold;
+	}
+	.archive-sub {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.45);
+		margin-top: 8px;
+		margin-bottom: 18px;
+		letter-spacing: 1px;
+	}
+	.archive-btn {
+		padding-top: 14px;
+		padding-bottom: 14px;
+		border-radius: 999px;
+		background-color: #1B4965;
+		align-items: center;
+		margin-bottom: 16px;
+	}
+	.archive-btn-text {
+		color: #ffffff;
+		font-size: 12px;
+		font-weight: bold;
+		letter-spacing: 2px;
+	}
+	.archive-input {
+		width: 100%;
+		height: 100px;
+		border-radius: 24px;
+		background-color: rgba(27, 73, 101, 0.08);
+		padding: 16px;
+		font-size: 12px;
+		color: #1B4965;
+	}
+	.archive-placeholder {
+		color: rgba(27, 73, 101, 0.32);
+		font-size: 12px;
+	}
+	.archive-actions {
+		flex-direction: row;
+		margin-top: 18px;
+	}
+	.archive-secondary,
+	.archive-primary {
+		flex: 1;
+		padding-top: 16px;
+		padding-bottom: 16px;
+		border-radius: 999px;
+		align-items: center;
+	}
+	.archive-secondary {
+		background-color: rgba(27, 73, 101, 0.08);
+		margin-right: 10px;
+	}
+	.archive-primary {
+		background-color: #1B4965;
+		margin-left: 10px;
+	}
+	.archive-secondary-text {
+		font-size: 12px;
+		font-weight: bold;
+		letter-spacing: 2px;
+		color: rgba(27, 73, 101, 0.80);
+	}
+	.archive-primary-text {
+		font-size: 12px;
+		font-weight: bold;
+		letter-spacing: 2px;
+		color: #ffffff;
+	}
+	.archive-selftest {
+		margin-top: 14px;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+	}
+	.archive-selftest-text {
+		font-size: 11px;
+		color: rgba(27, 73, 101, 0.45);
+		letter-spacing: 1px;
+		margin-left: 6px;
 	}
 	.composer-mask {
 		position: fixed;

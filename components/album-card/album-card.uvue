@@ -1,7 +1,10 @@
 <template>
-	<view class="album" :style="entryStyle" @click="onTap">
+	<view class="album" :style="entryStyle" @click="onTap" @touchstart="onTouchStart" @touchend="onTouchEnd" @touchcancel="onTouchEnd">
 		<view class="cover-wrap" :style="coverStyle">
 			<image-fallback :src="cover" :fallbackSrc="fallbackImage" mode="aspectFill"></image-fallback>
+			<view v-if="duration > 0" class="duration-badge">
+				<text class="duration-text">{{ durationText }}</text>
+			</view>
 		</view>
 		<text class="title">{{ title }}</text>
 		<text class="artist">{{ artist }}</text>
@@ -19,13 +22,27 @@
 		artist: { type: String, required: true },
 		cover: { type: String, required: true },
 		fallbackImage: { type: String, default: '' },
+		duration: { type: Number, default: 0 },
 		delay: { type: Number, default: 0 }
 	})
-	const emit = defineEmits(['play'])
+
+	function pad2(n : number) : string {
+		const s = '' + n
+		return s.length < 2 ? '0' + s : s
+	}
+	const durationText = computed<string>(() : string => {
+		const sec = Math.floor(props.duration)
+		const m = Math.floor(sec / 60)
+		const s = sec - m * 60
+		return m + ':' + pad2(s)
+	})
+	const emit = defineEmits(['play', 'longpress'])
 
 	const opacity = ref(0)
 	const offsetY = ref(40)
 	const pressScale = ref(1)
+	let longPressTimer : number = 0
+	let longPressFired = false
 
 	const entryStyle = computed<string>(() : string =>
 		'opacity:' + opacity.value + ';transform: translateY(' + offsetY.value + 'px)'
@@ -41,12 +58,46 @@
 		}, props.delay)
 	})
 
-	function onTap() {
+	function clearLongPressTimer() {
+		if (longPressTimer == 0) return
+		clearTimeout(longPressTimer)
+		longPressTimer = 0
+	}
+
+	function playPressFeedback() {
 		tweenRef(pressScale, 0.94, { duration: 110, ease: Ease.outQuart, onComplete: () => {
-			tweenRef(pressScale, 1, { duration: 320, ease: Ease.outBack, onComplete: null })
+			tweenRef(pressScale, 1, { duration: 500, ease: Ease.spring, onComplete: null })
 		} })
+	}
+
+	function onTap() {
+		if (longPressFired) {
+			longPressFired = false
+			return
+		}
+		playPressFeedback()
 		tapHaptic()
 		emit('play')
+	}
+	function emitLongPress() {
+		// 长按反馈一下，交由父级判断是否可删除
+		longPressFired = true
+		tweenRef(pressScale, 0.9, { duration: 140, ease: Ease.outQuart, onComplete: () => {
+			tweenRef(pressScale, 1, { duration: 560, ease: Ease.springBouncy, onComplete: null })
+		} })
+		tapHaptic()
+		emit('longpress')
+	}
+	function onTouchStart() {
+		clearLongPressTimer()
+		longPressFired = false
+		longPressTimer = setTimeout(() => {
+			longPressTimer = 0
+			emitLongPress()
+		}, 550) as number
+	}
+	function onTouchEnd() {
+		clearLongPressTimer()
 	}
 </script>
 
@@ -75,6 +126,23 @@
 		font-size: 9px;
 		color: rgba(27, 73, 101, 0.4);
 		margin-top: 2px;
+		letter-spacing: 1px;
+	}
+	.duration-badge {
+		position: absolute;
+		right: 8px;
+		bottom: 8px;
+		padding-left: 8px;
+		padding-right: 8px;
+		padding-top: 3px;
+		padding-bottom: 3px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.62);
+	}
+	.duration-text {
+		font-size: 9px;
+		color: #ffffff;
+		font-weight: bold;
 		letter-spacing: 1px;
 	}
 </style>

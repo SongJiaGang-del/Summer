@@ -7,13 +7,18 @@
 			:class="{ active: m.id == active }"
 			:style="'background-color:' + m.color"
 			@click="$emit('change', m.id)">
-			<text class="emoji">{{ m.icon }}</text>
+			<icon-wave v-if="m.iconName == 'wave'" :size="18" color="#1B4965"></icon-wave>
+			<icon-strawberry v-else-if="m.iconName == 'strawberry'" :size="18" color="#1B4965"></icon-strawberry>
+			<icon-mint v-else :size="18" color="#1B4965"></icon-mint>
 		</view>
 	</view>
 </template>
 
 <script setup lang="uts">
 	import type { Mood } from '@/store/player.uts'
+	import IconWave from '@/components/icons/icon-wave.uvue'
+	import IconStrawberry from '@/components/icons/icon-strawberry.uvue'
+	import IconMint from '@/components/icons/icon-mint.uvue'
 	defineProps({
 		moods: { type: Array as PropType<Mood[]>, required: true },
 		active: { type: String, required: true }
@@ -45,8 +50,5 @@
 		border-width: 3px;
 		border-color: rgba(255, 255, 255, 0.95);
 		transform: scale(1.1);
-	}
-	.emoji {
-		font-size: 16px;
 	}
 </style>

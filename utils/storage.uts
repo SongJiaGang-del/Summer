@@ -33,11 +33,23 @@ export function saveJson(key : string, obj : any) {
 	uni.setStorageSync(PREFIX + key, JSON.stringify(obj))
 }
 
-export function loadJson<T>(key : string, fallback : T) : T {
+export function loadObject<T>(key : string, fallback : T) : T {
 	const v = uni.getStorageSync(PREFIX + key)
 	if (v == null || (v as string) == '') return fallback
 	try {
-		return JSON.parse(v as string) as T
+		const parsed = JSON.parse<T>(v as string)
+		return parsed == null ? fallback : parsed!
+	} catch (e) {
+		return fallback
+	}
+}
+
+export function loadArray<T>(key : string, fallback : T[]) : T[] {
+	const v = uni.getStorageSync(PREFIX + key)
+	if (v == null || (v as string) == '') return fallback
+	try {
+		const parsed = JSON.parseArray<T>(v as string)
+		return parsed == null ? fallback : parsed!
 	} catch (e) {
 		return fallback
 	}
@@ -53,7 +65,12 @@ export type StorageKeys = {
 	STATS : string,
 	AMBIENTS : string,
 	BOTTLES : string,
-	VOLUME_HINT_SEEN : string
+	USER_SONGS : string,
+	AUTO_NEXT : string,
+	PLAY_MODE : string,
+	VOLUME_HINT_SEEN : string,
+	LAUNCHED : string,
+	GESTURE_SEEN : string
 }
 
 export const K : StorageKeys = {
@@ -65,5 +82,95 @@ export const K : StorageKeys = {
 	STATS: 'stats',
 	AMBIENTS: 'ambients',
 	BOTTLES: 'bottles',
-	VOLUME_HINT_SEEN: 'volumeHintSeen'
+	USER_SONGS: 'userSongs',
+	AUTO_NEXT: 'autoNext',
+	PLAY_MODE: 'playMode',
+	VOLUME_HINT_SEEN: 'volumeHintSeen',
+	LAUNCHED: 'launched',
+	GESTURE_SEEN: 'gestureSeen'
+}
+
+/* ───── 存档导出 / 导入（纯前端迁移，无后端）───── */
+
+// 显式 schema：每个字段对应一个 storage key 的原始字符串值。
+// 用命名类型而非 UTSJSONObject，规避 uts 动态对象 API 的平台差异。
+export type Archive = {
+	v : number,
+	mood : string,
+	songIdx : string,
+	volume : string,
+	stats : string,
+	ambients : string,
+	bottles : string,
+	userSongs : string,
+	autoNext : string,
+	playMode : string,
+	recents : string
+}
+
+function readRaw(key : string) : string {
+	const v = uni.getStorageSync(PREFIX + key)
+	if (v == null) return ''
+	return v as string
+}
+
+function writeRaw(key : string, value : string) {
+	if (value == '') return
+	uni.setStorageSync(PREFIX + key, value)
+}
+
+function writeRawOrDefault(key : string, value : string, fallback : string) {
+	if (value == '') {
+		uni.setStorageSync(PREFIX + key, fallback)
+		return
+	}
+	uni.setStorageSync(PREFIX + key, value)
+}
+
+function normalizePlayModeRaw(value : string) : string {
+	if (value == 'repeat-one') return 'repeat-one'
+	if (value == 'shuffle') return 'shuffle'
+	return 'sequence'
+}
+
+/** 把用户数据序列化成一段可复制的字符串（带版本号）*/
+export function exportArchive() : string {
+	const archive : Archive = {
+		v: 1,
+		mood: readRaw(K.MOOD),
+		songIdx: readRaw(K.SONG_INDEX),
+		volume: readRaw(K.VOLUME),
+		stats: readRaw(K.STATS),
+		ambients: readRaw(K.AMBIENTS),
+		bottles: readRaw(K.BOTTLES),
+		userSongs: readRaw(K.USER_SONGS),
+		autoNext: readRaw(K.AUTO_NEXT),
+		playMode: readRaw(K.PLAY_MODE),
+		recents: readRaw(K.RECENTS)
+	}
+	return JSON.stringify(archive)
+}
+
+/** 从导出的字符串恢复，成功返回 true */
+export function importArchive(text : string) : boolean {
+	const trimmed = text.trim()
+	if (trimmed == '') return false
+	try {
+		// 用 JSON.parse<Archive> 真类型化，避免 UTSJSONObject 转 Archive 崩
+		const a = JSON.parse<Archive>(trimmed)
+		if (a == null || a!.v != 1) return false
+		writeRaw(K.MOOD, a!.mood)
+		writeRaw(K.SONG_INDEX, a!.songIdx)
+		writeRaw(K.VOLUME, a!.volume)
+		writeRaw(K.STATS, a!.stats)
+		writeRaw(K.AMBIENTS, a!.ambients)
+		writeRaw(K.BOTTLES, a!.bottles)
+		writeRaw(K.USER_SONGS, a!.userSongs)
+		writeRawOrDefault(K.AUTO_NEXT, a!.autoNext, '1')
+		writeRawOrDefault(K.PLAY_MODE, normalizePlayModeRaw(a!.playMode), 'sequence')
+		writeRaw(K.RECENTS, a!.recents)
+		return true
+	} catch (e) {
+		return false
+	}
 }

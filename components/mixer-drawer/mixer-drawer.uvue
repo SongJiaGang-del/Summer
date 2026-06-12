@@ -4,12 +4,42 @@
 			<view class="handle"></view>
 			<text class="title">环境混音</text>
 			<text class="sub">叠加海浪、夏蝉与微雨，调出你的夏日背景声</text>
+			<view class="setting-row" @click="onToggleAutoNext">
+				<view class="setting-copy">
+					<text class="setting-title">自动播放下一首</text>
+					<text class="setting-sub">{{ autoNextText }}</text>
+				</view>
+				<view class="switch" :class="{ 'switch-on': autoPlayNext }">
+					<view class="switch-thumb" :class="{ 'switch-thumb-on': autoPlayNext }"></view>
+				</view>
+			</view>
+			<view class="mode-setting">
+				<view class="setting-copy">
+					<text class="setting-title">播放模式</text>
+					<text class="setting-sub">{{ playModeHint }}</text>
+				</view>
+				<view class="mode-tabs">
+					<view class="mode-tab" :class="{ 'mode-tab-on': playMode == 'sequence' }" @click="onSetPlayMode('sequence')">
+						<text class="mode-tab-text" :class="{ 'mode-tab-text-on': playMode == 'sequence' }">顺序</text>
+					</view>
+					<view class="mode-tab" :class="{ 'mode-tab-on': playMode == 'repeat-one' }" @click="onSetPlayMode('repeat-one')">
+						<text class="mode-tab-text" :class="{ 'mode-tab-text-on': playMode == 'repeat-one' }">单曲</text>
+					</view>
+					<view class="mode-tab" :class="{ 'mode-tab-on': playMode == 'shuffle' }" @click="onSetPlayMode('shuffle')">
+						<text class="mode-tab-text" :class="{ 'mode-tab-text-on': playMode == 'shuffle' }">随机</text>
+					</view>
+				</view>
+			</view>
 			<view class="tracks">
 				<view v-for="(t, i) in tracks" :key="t.id"
 					class="track" :class="{ 'track-on': t.on, 'track-error': t.error }"
 					:style="trackStyle(i)"
 					@click="onToggle(t.id)">
-					<text class="track-icon">{{ t.icon }}</text>
+					<view class="track-icon">
+						<icon-wave v-if="t.iconName == 'wave'" :size="30" :color="t.on ? '#AEEFF0' : '#1B4965'"></icon-wave>
+						<icon-cicada v-else-if="t.iconName == 'cicada'" :size="30" :color="t.on ? '#AEEFF0' : '#1B4965'"></icon-cicada>
+						<icon-rain v-else :size="30" :color="t.on ? '#AEEFF0' : '#1B4965'"></icon-rain>
+					</view>
 					<text class="track-name" :class="{ 'on-text': t.on }">{{ t.name }}</text>
 					<text class="track-state" :class="{ 'on-text': t.on }">{{ trackStateText(t) }}</text>
 					<view class="volume-row" @click.stop="noop">
@@ -24,6 +54,7 @@
 					<view class="led" :class="{ 'led-on': t.on }"></view>
 				</view>
 			</view>
+			<text class="credits">音源：Wikimedia Commons · jeppen / Σ64 / cori · CC BY 3.0 / 4.0 / 公共领域</text>
 		</view>
 	</view>
 </template>
@@ -32,8 +63,11 @@
 	import { ref, computed, watch, type Ref } from 'vue'
 	import { tweenRef } from '@/composables/use-anim.uts'
 	import { Ease } from '@/utils/ease.uts'
-	import { ambients, toggleAmbient, setAmbientVolume, type AmbientTrack } from '@/store/player.uts'
+	import { state, ambients, toggleAmbient, setAmbientVolume, setAutoPlayNext, setPlayMode, type AmbientTrack, type PlayMode } from '@/store/player.uts'
 	import { tapHaptic } from '@/utils/haptic.uts'
+	import IconWave from '@/components/icons/icon-wave.uvue'
+	import IconCicada from '@/components/icons/icon-cicada.uvue'
+	import IconRain from '@/components/icons/icon-rain.uvue'
 
 	const props = defineProps({
 		visible: { type: Boolean, default: false }
@@ -41,6 +75,14 @@
 	const emit = defineEmits(['close'])
 
 	const tracks = computed<AmbientTrack[]>(() : AmbientTrack[] => ambients.value)
+	const autoPlayNext = computed<boolean>(() : boolean => state.autoPlayNext)
+	const autoNextText = computed<string>(() : string => autoPlayNext.value ? '顺序/随机模式下继续播放队列' : '顺序/随机模式下曲末停止')
+	const playMode = computed<PlayMode>(() : PlayMode => state.playMode)
+	const playModeHint = computed<string>(() : string => {
+		if (playMode.value == 'repeat-one') return '歌曲结束后重新播放当前歌曲'
+		if (playMode.value == 'shuffle') return '歌曲结束后随机挑选下一首'
+		return '歌曲结束后按列表继续播放'
+	})
 
 	const rendered = ref(false)
 	const maskOpacity = ref(0)
@@ -60,7 +102,7 @@
 
 	function playIn() {
 		tweenRef(maskOpacity, 1, { duration: 240, ease: Ease.outQuart, onComplete: null })
-		tweenRef(drawerY, 0, { duration: 520, ease: Ease.outBack, onComplete: null })
+		tweenRef(drawerY, 0, { duration: 560, ease: Ease.spring, onComplete: null })
 		for (let i = 0; i < 3; i++) {
 			const idx = i
 			setTimeout(() => {
@@ -101,6 +143,15 @@
 	function onSetVolume(id : string, step : number) {
 		tapHaptic()
 		setAmbientVolume(id, step)
+	}
+	function onToggleAutoNext() {
+		tapHaptic()
+		setAutoPlayNext(!autoPlayNext.value)
+	}
+	function onSetPlayMode(mode : PlayMode) {
+		if (playMode.value == mode) return
+		tapHaptic()
+		setPlayMode(mode)
 	}
 	function trackStateText(track : AmbientTrack) : string {
 		if (track.error) return '加载失败'
@@ -145,6 +196,97 @@
 		margin-top: 8px;
 		margin-bottom: 24px;
 	}
+	.setting-row {
+		width: 100%;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		padding: 16px;
+		border-radius: 24px;
+		background-color: rgba(27, 73, 101, 0.06);
+		border-width: 1px;
+		border-color: rgba(27, 73, 101, 0.08);
+		margin-bottom: 18px;
+	}
+	.setting-copy {
+		flex-direction: column;
+		flex: 1;
+	}
+	.setting-title {
+		font-size: 12px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 1px;
+	}
+	.setting-sub {
+		font-size: 9px;
+		font-weight: bold;
+		color: rgba(27, 73, 101, 0.42);
+		margin-top: 5px;
+		letter-spacing: 1px;
+	}
+	.switch {
+		width: 48px;
+		height: 28px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.14);
+		padding: 3px;
+		margin-left: 14px;
+	}
+	.switch-on {
+		background-color: #1B4965;
+	}
+	.switch-thumb {
+		width: 22px;
+		height: 22px;
+		border-radius: 999px;
+		background-color: #ffffff;
+	}
+	.switch-thumb-on {
+		margin-left: 20px;
+	}
+	.mode-setting {
+		width: 100%;
+		padding: 16px;
+		border-radius: 24px;
+		background-color: rgba(27, 73, 101, 0.06);
+		border-width: 1px;
+		border-color: rgba(27, 73, 101, 0.08);
+		margin-bottom: 18px;
+	}
+	.mode-tabs {
+		flex-direction: row;
+		margin-top: 12px;
+		padding: 3px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.08);
+	}
+	.mode-tab {
+		flex: 1;
+		padding-top: 9px;
+		padding-bottom: 9px;
+		border-radius: 999px;
+		align-items: center;
+	}
+	.mode-tab-on {
+		background-color: #1B4965;
+	}
+	.mode-tab-text {
+		font-size: 10px;
+		font-weight: bold;
+		color: rgba(27, 73, 101, 0.52);
+		letter-spacing: 1px;
+	}
+	.mode-tab-text-on {
+		color: #ffffff;
+	}
+	.credits {
+		font-size: 9px;
+		color: rgba(27, 73, 101, 0.32);
+		margin-top: 18px;
+		text-align: center;
+		letter-spacing: 1px;
+	}
 	.tracks {
 		flex-direction: row;
 		justify-content: space-between;
@@ -170,7 +312,12 @@
 	.track-error {
 		opacity: 0.72;
 	}
-	.track-icon { font-size: 28px; }
+	.track-icon {
+		width: 32px;
+		height: 32px;
+		align-items: center;
+		justify-content: center;
+	}
 	.track-name {
 		font-size: 11px;
 		font-weight: bold;

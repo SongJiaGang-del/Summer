@@ -1,7 +1,9 @@
 <template>
 	<view v-if="rendered" class="mask" :style="maskStyle" @click="onClose">
 		<view class="card" :style="cardStyle" @click.stop="noop">
-			<text class="emoji" :style="emojiStyle">🍾</text>
+			<view class="emoji" :style="emojiStyle">
+				<icon-bottle :size="58" color="#1B4965"></icon-bottle>
+			</view>
 			<text class="msg" :style="msgStyle">"{{ bottleText }}"</text>
 			<text class="song" :style="msgStyle">漂来时正在听：《{{ songTitle }}》</text>
 			<view v-if="replyCount > 0" class="replies" :style="msgStyle">
@@ -33,6 +35,7 @@
 	import { tweenRef } from '@/composables/use-anim.uts'
 	import { Ease } from '@/utils/ease.uts'
 	import { addBottleReply, type Bottle } from '@/store/player.uts'
+	import IconBottle from '@/components/icons/icon-bottle.uvue'
 
 	const props = defineProps({
 		visible: { type: Boolean, default: false },
@@ -68,8 +71,8 @@
 		// timeline: mask → card → emoji → msg → btn
 		tweenRef(maskOpacity, 1, { duration: 220, ease: Ease.outQuart, onComplete: null })
 		setTimeout(() => {
-			tweenRef(cardY,     0, { duration: 520, ease: Ease.outBack, onComplete: null })
-			tweenRef(cardScale, 1, { duration: 520, ease: Ease.outBack, onComplete: null })
+			tweenRef(cardY,     0, { duration: 560, ease: Ease.spring, onComplete: null })
+			tweenRef(cardScale, 1, { duration: 560, ease: Ease.spring, onComplete: null })
 		}, 100)
 		setTimeout(() => {
 			tweenRef(emojiOpacity, 1, { duration: 320, ease: Ease.outQuart, onComplete: null })
@@ -156,7 +159,10 @@
 		align-items: center;
 	}
 	.emoji {
-		font-size: 56px;
+		width: 58px;
+		height: 58px;
+		align-items: center;
+		justify-content: center;
 		margin-bottom: 24px;
 	}
 	.msg {

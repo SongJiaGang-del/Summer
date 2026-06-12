@@ -4,7 +4,7 @@
 
 		<view class="topbar">
 			<view class="back-btn" @click="onBack">
-				<text class="back-icon">‹</text>
+				<icon-prev :size="22" color="#1B4965"></icon-prev>
 			</view>
 			<text class="top-title">场景歌单</text>
 			<view class="top-spacer"></view>
@@ -17,7 +17,11 @@
 				</view>
 				<view class="hero-shade"></view>
 				<view class="hero-copy">
+					<view class="time-chip">
+						<text class="time-chip-text">{{ scene.suggestedHour }}</text>
+					</view>
 					<text class="scene-name">{{ scene.name }}</text>
+					<text class="scene-narrative">{{ scene.narrative }}</text>
 					<text class="scene-desc">{{ scene.desc }}</text>
 				</view>
 			</view>
@@ -37,6 +41,7 @@
 						:artist="song.artist"
 						:cover="song.cover"
 						v-bind:fallback-image="song.fallbackImage"
+						v-bind:duration="song.duration"
 						v-bind:delay="120 + idx * 80"
 						@play="onPlaySceneSong(song)">
 					</album-card>
@@ -58,6 +63,7 @@
 		type Category, type Song
 	} from '@/store/player.uts'
 	import { hexToRgb, rgbToCss } from '@/utils/color.uts'
+	import IconPrev from '@/components/icons/icon-prev.uvue'
 
 	const sceneId = ref('')
 	const statusBarH = ref(0)
@@ -69,7 +75,10 @@
 		image: '',
 		fallbackImage: '/static/images/fallback-sea.svg',
 		moodId: 'sea-salt',
-		desc: ''
+		desc: '',
+		narrative: '',
+		suggestedHour: '--:--',
+		songIndices: [] as number[]
 	}
 
 	const scene = computed<Category>(() : Category => {
@@ -95,10 +104,10 @@
 
 	function getSongsForScene(cat : Category) : Song[] {
 		const result : Song[] = []
-		playlist.forEach((song : Song) => {
-			if (song.moodId == cat.moodId) pushSceneSong(result, song)
+		cat.songIndices.forEach((idx : number) => {
+			if (idx >= 0 && idx < playlist.value.length) pushSceneSong(result, playlist.value[idx])
 		})
-		if (result.length == 0) return playlist
+		if (result.length == 0) return playlist.value
 		return result
 	}
 
@@ -107,8 +116,8 @@
 	})
 
 	function findSongIndex(song : Song) : number {
-		for (let i = 0; i < playlist.length; i++) {
-			const s = playlist[i]
+		for (let i = 0; i < playlist.value.length; i++) {
+			const s = playlist.value[i]
 			if (s.title == song.title && s.artist == song.artist) return i
 		}
 		return -1
@@ -172,12 +181,6 @@
 		align-items: center;
 		justify-content: center;
 	}
-	.back-icon {
-		font-size: 28px;
-		color: #1B4965;
-		font-weight: bold;
-		line-height: 28px;
-	}
 	.top-title {
 		font-size: 16px;
 		font-weight: bold;
@@ -223,6 +226,29 @@
 		font-weight: bold;
 		color: #ffffff;
 		letter-spacing: 4px;
+	}
+	.time-chip {
+		align-self: flex-start;
+		padding-left: 12px;
+		padding-right: 12px;
+		padding-top: 6px;
+		padding-bottom: 6px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.22);
+		margin-bottom: 12px;
+	}
+	.time-chip-text {
+		font-size: 11px;
+		font-weight: bold;
+		color: #ffffff;
+		letter-spacing: 2px;
+	}
+	.scene-narrative {
+		font-size: 13px;
+		color: rgba(255, 255, 255, 0.92);
+		line-height: 22px;
+		margin-top: 10px;
+		font-weight: bold;
 	}
 	.scene-desc {
 		font-size: 12px;

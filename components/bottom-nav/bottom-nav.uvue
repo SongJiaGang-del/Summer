@@ -1,5 +1,5 @@
 <template>
-	<glass-panel rounded="r-sheet" variant="medium" pad="p-none">
+	<glass-panel rounded="r-sheet" variant="frosted" pad="p-none">
 		<view class="nav">
 			<!-- 浮动指示器：根据 active 位移 -->
 			<view class="indicator" :style="indicatorStyle"></view>
@@ -8,7 +8,11 @@
 				:key="item.id"
 				class="tab"
 				@click="onTap(idx)">
-				<text class="icon" :class="{ active: idx == active }">{{ item.icon }}</text>
+				<view class="icon" :class="{ active: idx == active }">
+					<icon-music-note v-if="item.iconName == 'music-note'" :size="22" :color="idx == active ? '#1B4965' : 'rgba(27, 73, 101, 0.20)'"></icon-music-note>
+					<icon-compass v-else-if="item.iconName == 'compass'" :size="22" :color="idx == active ? '#1B4965' : 'rgba(27, 73, 101, 0.20)'"></icon-compass>
+					<icon-island v-else :size="22" :color="idx == active ? '#1B4965' : 'rgba(27, 73, 101, 0.20)'"></icon-island>
+				</view>
 				<text class="name" :class="{ active: idx == active }">{{ item.name }}</text>
 			</view>
 		</view>
@@ -21,6 +25,9 @@
 	import { Ease } from '@/utils/ease.uts'
 	import { tapHaptic } from '@/utils/haptic.uts'
 	import { type NavItem } from '@/store/player.uts'
+	import IconMusicNote from '@/components/icons/icon-music-note.uvue'
+	import IconCompass from '@/components/icons/icon-compass.uvue'
+	import IconIsland from '@/components/icons/icon-island.uvue'
 
 	const props = defineProps({
 		items: { type: Array as PropType<NavItem[]>, required: true },
@@ -72,10 +79,11 @@
 		align-items: center;
 	}
 	.icon {
-		font-size: 22px;
-		color: rgba(27, 73, 101, 0.20);
+		width: 24px;
+		height: 24px;
+		align-items: center;
+		justify-content: center;
 	}
-	.icon.active { color: #1B4965; }
 	.name {
 		font-size: 9px;
 		font-weight: bold;

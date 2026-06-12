@@ -2,14 +2,14 @@
 	<view class="viewport" :style="viewportStyle">
 		<view class="lyrics" :style="scrollStyle">
 			<view
-				v-for="(line, index) in lines"
+				v-for="(line, index) in displayLines"
 				:key="index"
 				class="line"
 				@click="onLineTap(index)">
 				<text class="line-text"
 					:class="{
-						'text-active': index == currentIndex,
-						'text-near': Math.abs(index - currentIndex) == 1
+						'text-active': isActiveGroup(index),
+						'text-near': isNearGroup(index)
 					}"
 					:style="lineStyle(index)">{{ line }}</text>
 			</view>
@@ -17,59 +17,198 @@
 		<!-- 上下遮罩条，模拟 mask-image -->
 		<view class="fade fade-top"></view>
 		<view class="fade fade-bot"></view>
+		<!-- 诚实标注：歌词为氛围陪伴，非逐字精准同步 -->
+		<!-- <view class="lyric-badge">
+			<icon-lyrics :size="10" color="rgba(27, 73, 101, 0.4)"></icon-lyrics>
+			<text class="lyric-badge-text">App 原创氛围词</text>
+		</view> -->
 	</view>
 </template>
 
 <script setup lang="uts">
-	import { ref, computed, watch } from 'vue'
+	import { ref, computed, watch, onUnmounted } from 'vue'
 	import { tweenRef } from '@/composables/use-anim.uts'
 	import { Ease } from '@/utils/ease.uts'
 	import { rpx2px } from '@/utils/responsive.uts'
+	import { onFrame, offFrame } from '@/utils/ticker.uts'
+	import IconLyrics from '@/components/icons/icon-lyrics.uvue'
 
 	const props = defineProps({
 		lines: { type: Array as PropType<string[]>, required: true },
-		currentIndex: { type: Number, default: 0 }
+		lyricTimes: { type: Array as PropType<number[]>, default: () : number[] => [] as number[] },
+		currentIndex: { type: Number, default: 0 },
+		playing: { type: Boolean, default: false }
 	})
 	const emit = defineEmits(['seek'])
 
-	// 与 CSS 的 .line { height: 80rpx } 保持一致：用 rpx2px 把 rpx 实时换成 px
+	// 与 CSS 的 .line / 外层 .lyrics-wrap 高度保持一致
 	const LINE_H = rpx2px(80)
-	const CENTER_OFFSET = rpx2px(96) // viewport 中线偏移
+	const VIEWPORT_H = rpx2px(200)
+	const CENTER_OFFSET = (VIEWPORT_H - LINE_H) / 2
 
-	const scrollY = ref<number>(CENTER_OFFSET - props.currentIndex * LINE_H)
-	const activeScale = ref(1)
+	const displayLines = ref<string[]>(props.lines)
+	const displayIndex = ref<number>(props.currentIndex)
+	let switchingLines = false
+
+	function normalizedIndex(idx : number, total : number) : number {
+		const max = total - 1
+		if (max < 0) return 0
+		if (idx < 0) return 0
+		if (idx > max) return max
+		return idx
+	}
+
+	function hasHanText(text : string) : boolean {
+		for (let i = 0; i < text.length; i++) {
+			const code = text.charCodeAt(i)
+			if (code == null) continue
+			if (code >= 0x4e00 && code <= 0x9fff) return true
+		}
+		return false
+	}
+
+	function groupStartIndex(idx : number, total : number) : number {
+		const targetIdx = normalizedIndex(idx, total)
+		if (targetIdx > 0 && hasHanText(displayLines.value[targetIdx]) && !hasHanText(displayLines.value[targetIdx - 1])) {
+			return targetIdx - 1
+		}
+		return targetIdx
+	}
+
+	function groupSize(start : number, total : number) : number {
+		if (start + 1 < total && !hasHanText(displayLines.value[start]) && hasHanText(displayLines.value[start + 1])) {
+			return 2
+		}
+		return 1
+	}
+
+	function groupCenterIndex(idx : number, total : number) : number {
+		const start = groupStartIndex(idx, total)
+		const size = groupSize(start, total)
+		return start + (size - 1) / 2
+	}
+
+	function targetScrollY(idx : number, total : number) : number {
+		return CENTER_OFFSET - groupCenterIndex(idx, total) * LINE_H
+	}
+
+	function isActiveGroup(idx : number) : boolean {
+		return groupStartIndex(idx, displayLines.value.length) == groupStartIndex(displayIndex.value, displayLines.value.length)
+	}
+
+	function isNearGroup(idx : number) : boolean {
+		const rowCenter = groupCenterIndex(idx, displayLines.value.length)
+		const activeCenter = groupCenterIndex(displayIndex.value, displayLines.value.length)
+		const d = Math.abs(rowCenter - activeCenter)
+		return d > 0 && d <= 2
+	}
+
+	const scrollY = ref<number>(targetScrollY(displayIndex.value, displayLines.value.length))
 	const wrapperOpacity = ref(1)
+
+	/* 聚光：activePos 被 tween 驱动，使「离开的上一行淡出 / 接力的下一行亮起」平滑过渡 */
+	const activePos = ref<number>(props.currentIndex)
+	/* 绽放：当前行切换时弹一下 */
+	const activeScale = ref(1)
+	/* 呼吸：播放时当前行极小幅振荡，暂停静止 */
+	const breathScale = ref(1)
+	const breathOpacity = ref(1)
 
 	const scrollStyle = computed<string>(() : string => 'transform: translateY(' + scrollY.value + 'px)')
 	const viewportStyle = computed<string>(() : string => 'opacity:' + wrapperOpacity.value)
 
 	function lineStyle(idx : number) : string {
-		if (idx == props.currentIndex) return 'transform: scale(' + activeScale.value + ')'
-		return ''
+		const rowGroupStart = groupStartIndex(idx, displayLines.value.length)
+		const activeGroupStart = groupStartIndex(displayIndex.value, displayLines.value.length)
+		const dist = Math.abs(groupCenterIndex(rowGroupStart, displayLines.value.length) - activePos.value)
+		// 远处行：直接给低透明度，省去精细计算（166 行也不卡）
+		if (dist > 4) return 'opacity:0.10'
+		// 距离越远越淡：中心 1.0 → 边缘渐隐
+		let op = 1.0 - dist * 0.30
+		if (op < 0.12) op = 0.12
+		if (rowGroupStart == activeGroupStart) {
+			const sc = activeScale.value * breathScale.value
+			return 'opacity:' + (op * breathOpacity.value) + ';transform: scale(' + sc + ')'
+		}
+		return 'opacity:' + op
+	}
+
+	function syncToCurrentIndex(animated : boolean) {
+		const targetIdx = normalizedIndex(props.currentIndex, displayLines.value.length)
+		displayIndex.value = targetIdx
+		const targetY = targetScrollY(targetIdx, displayLines.value.length)
+		if (animated) {
+			tweenRef(scrollY, targetY, {
+				duration: 520, ease: Ease.outQuart, onComplete: null
+			})
+			tweenRef(activePos, groupCenterIndex(targetIdx, displayLines.value.length), {
+				duration: 460, ease: Ease.outQuart, onComplete: null
+			})
+		} else {
+			scrollY.value = targetY
+			activePos.value = groupCenterIndex(targetIdx, displayLines.value.length)
+		}
 	}
 
 	/* 切歌：歌词整体淡出 → 重置位置 → 淡入 */
 	watch(() : string[] => props.lines, () => {
+		switchingLines = true
 		tweenRef(wrapperOpacity, 0, {
 			duration: 240, ease: Ease.inOutQuad,
 			onComplete: () => {
-				scrollY.value = CENTER_OFFSET
-				tweenRef(wrapperOpacity, 1, { duration: 380, ease: Ease.outQuart, onComplete: null })
+				displayLines.value = props.lines
+				const idx = normalizedIndex(props.currentIndex, displayLines.value.length)
+				displayIndex.value = idx
+				scrollY.value = targetScrollY(idx, displayLines.value.length)
+				activePos.value = groupCenterIndex(idx, displayLines.value.length)
+				tweenRef(wrapperOpacity, 1, {
+					duration: 380, ease: Ease.outQuart,
+					onComplete: () => {
+						switchingLines = false
+						syncToCurrentIndex(false)
+					}
+				})
 			}
 		})
 	})
 
 	watch(() : number => props.currentIndex, (idx : number) => {
-		// 平滑滚到目标行
-		tweenRef(scrollY, CENTER_OFFSET - idx * LINE_H, {
-			duration: 520, ease: Ease.outQuart, onComplete: null
-		})
-		// 当前行弹一下
-		activeScale.value = 0.92
-		tweenRef(activeScale, 1.05, { duration: 280, ease: Ease.outBack, onComplete: () => {
+		if (switchingLines) return
+		syncToCurrentIndex(true)
+		// 当前行绽放
+		activeScale.value = 0.9
+		tweenRef(activeScale, 1.06, { duration: 280, ease: Ease.outBack, onComplete: () => {
 			tweenRef(activeScale, 1, { duration: 200, ease: Ease.outQuart, onComplete: null })
 		} })
 	})
+
+	/* ───── 当前行呼吸：接入中心 ticker，仅播放时运行 ───── */
+	let breathFrameId : number = 0
+	let breathPhase = 0
+	function startBreath() {
+		if (breathFrameId != 0) return
+		breathFrameId = onFrame((dt : number) => {
+			// 一周期约 2.6s
+			breathPhase = (breathPhase + dt / 2600) % 1
+			const s = Math.sin(breathPhase * Math.PI * 2)
+			breathScale.value = 1 + s * 0.015          // 0.985 ~ 1.015
+			breathOpacity.value = 0.96 + (s * 0.5 + 0.5) * 0.04  // 0.96 ~ 1.0
+		})
+	}
+	function stopBreath() {
+		if (breathFrameId != 0) {
+			offFrame(breathFrameId)
+			breathFrameId = 0
+		}
+		breathScale.value = 1
+		breathOpacity.value = 1
+	}
+	watch(() : boolean => props.playing, (v : boolean) => {
+		if (v) startBreath()
+		else stopBreath()
+	})
+	if (props.playing) startBreath()
+	onUnmounted(() => { stopBreath() })
 
 	function onLineTap(idx : number) {
 		emit('seek', idx)
@@ -94,19 +233,18 @@
 		justify-content: center;
 		width: 100%;
 	}
+	/* 颜色用实色，淡入淡出统一交给 inline opacity 控制，避免 class alpha 与 opacity 叠加 */
 	.line-text {
 		font-size: 14px;
-		color: rgba(27, 73, 101, 0.18);
+		color: #1B4965;
 		text-align: center;
 		font-weight: bold;
 	}
 	.text-near {
 		font-size: 15px;
-		color: rgba(27, 73, 101, 0.45);
 	}
 	.text-active {
 		font-size: 20px;
-		color: #1B4965;
 		font-weight: bold;
 	}
 	.fade {
@@ -116,4 +254,17 @@
 	}
 	.fade-top { top: 0; }
 	.fade-bot { bottom: 0; }
+	.lyric-badge {
+		position: absolute;
+		top: 0;
+		right: 0;
+		flex-direction: row;
+		align-items: center;
+	}
+	.lyric-badge-text {
+		font-size: 9px;
+		color: rgba(27, 73, 101, 0.4);
+		letter-spacing: 1px;
+		margin-left: 3px;
+	}
 </style>

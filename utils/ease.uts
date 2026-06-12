@@ -46,6 +46,29 @@ export const outElastic = (t : number) : number => {
 
 export type EaseFn = (t : number) => number
 
+/**
+ * 阻尼弹簧求解器（drop-in EaseFn）。
+ * 闭式解 spring(t) = 1 - cos(t·freq)·e^(-t·decay)：
+ *   - t=0 → 0，随时间在 1 附近做衰减振荡，模拟真实弹簧的过冲 + 回落 + 收敛
+ *   - freq 越大振荡越多，decay 越大收敛越快（过冲越小）
+ * 用作 ease 时，tween 会在 p≥1 锁定到精确终值，末端无跳变。
+ * 想要"有重量、会回弹"的手感，把 ease 换成下面的 spring* 预设即可。
+ */
+export function makeSpring(freq : number, decay : number) : EaseFn {
+	return (t : number) : number => {
+		if (t <= 0) return 0
+		if (t >= 1) return 1
+		return 1 - Math.cos(t * freq) * Math.exp(-t * decay)
+	}
+}
+
+/** 默认弹簧：1 次约 11% 过冲后干净收敛，最接近 iOS 系统动效手感 */
+export const spring : EaseFn = makeSpring(8.5, 6.0)
+/** 轻柔弹簧：过冲 ~1.5%，几乎不弹，适合大面板/页面级转场 */
+export const springSoft : EaseFn = makeSpring(5.5, 7.5)
+/** 弹跳弹簧：2-3 次可见回弹，适合点击反馈、徽章、点赞类强反馈 */
+export const springBouncy : EaseFn = makeSpring(13.0, 4.5)
+
 export type EaseMap = {
 	linear : EaseFn,
 	inOutQuad : EaseFn,
@@ -55,7 +78,10 @@ export type EaseMap = {
 	inOutQuart : EaseFn,
 	outBack : EaseFn,
 	inOutBack : EaseFn,
-	outElastic : EaseFn
+	outElastic : EaseFn,
+	spring : EaseFn,
+	springSoft : EaseFn,
+	springBouncy : EaseFn
 }
 
 export const Ease : EaseMap = {
@@ -67,5 +93,8 @@ export const Ease : EaseMap = {
 	inOutQuart: inOutQuart,
 	outBack: outBack,
 	inOutBack: inOutBack,
-	outElastic: outElastic
+	outElastic: outElastic,
+	spring: spring,
+	springSoft: springSoft,
+	springBouncy: springBouncy
 }

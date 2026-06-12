@@ -1,0 +1,168 @@
+<template>
+	<view v-if="rendered" class="mask" :style="maskStyle" @click="onClose">
+		<view class="card" :style="cardStyle" @click.stop="noop">
+			<text class="brand">夏日律动 · 我的报告</text>
+			<view class="hero">
+				<text class="hero-lv">LV.{{ level }}</text>
+				<text class="hero-title">{{ title }}</text>
+			</view>
+			<view class="stats">
+				<view class="stat">
+					<text class="stat-val">{{ playTimeText }}</text>
+					<text class="stat-label">累计聆听</text>
+				</view>
+				<view class="stat">
+					<text class="stat-val">{{ songCount }}</text>
+					<text class="stat-label">听过歌曲</text>
+				</view>
+				<view class="stat">
+					<text class="stat-val">{{ moodLabelText }}</text>
+					<text class="stat-label">最爱氛围</text>
+				</view>
+			</view>
+			<text class="tagline">{{ tagline }}</text>
+			<text class="hint">长按截图，把你的夏天分享出去</text>
+			<view class="close-btn" @click="onClose">
+				<text class="close-text">收下这个夏天</text>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, watch } from 'vue'
+	import { tweenRef } from '@/composables/use-anim.uts'
+	import { Ease } from '@/utils/ease.uts'
+
+	const props = defineProps({
+		visible: { type: Boolean, default: false },
+		level: { type: Number, default: 1 },
+		title: { type: String, default: '' },
+		playTimeText: { type: String, default: '0m' },
+		songCount: { type: Number, default: 0 },
+		moodLabelText: { type: String, default: '' },
+		tagline: { type: String, default: '' }
+	})
+	const emit = defineEmits(['close'])
+
+	const rendered = ref(false)
+	const maskAlpha = ref(0)
+	const cardScale = ref(0.7)
+	const maskStyle = computed<string>(() : string => 'opacity:' + maskAlpha.value)
+	const cardStyle = computed<string>(() : string => 'transform: scale(' + cardScale.value + ')')
+
+	let finished = false
+	function playOut() {
+		if (finished) return
+		finished = true
+		tweenRef(maskAlpha, 0, {
+			duration: 280, ease: Ease.inOutQuad,
+			onComplete: () => { rendered.value = false }
+		})
+	}
+	function onClose() { emit('close') }
+	function noop() { /* prevent bubbling */ }
+
+	watch(() : boolean => props.visible, (v : boolean) => {
+		if (v) {
+			rendered.value = true
+			maskAlpha.value = 0
+			cardScale.value = 0.7
+			finished = false
+			tweenRef(maskAlpha, 1, { duration: 240, ease: Ease.outQuart, onComplete: null })
+			tweenRef(cardScale, 1, { duration: 580, ease: Ease.spring, onComplete: null })
+		} else if (rendered.value) {
+			playOut()
+		}
+	})
+</script>
+
+<style>
+	.mask {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(0, 0, 0, 0.5);
+		align-items: center;
+		justify-content: center;
+		padding-left: 28px;
+		padding-right: 28px;
+		z-index: 150;
+	}
+	.card {
+		width: 100%;
+		border-radius: 44px;
+		padding: 36px;
+		align-items: center;
+		background-color: #1B4965;
+	}
+	.brand {
+		font-size: 11px;
+		color: rgba(255, 255, 255, 0.6);
+		letter-spacing: 3px;
+		margin-bottom: 24px;
+	}
+	.hero {
+		align-items: center;
+		margin-bottom: 28px;
+	}
+	.hero-lv {
+		font-size: 56px;
+		font-weight: bold;
+		color: #ffffff;
+	}
+	.hero-title {
+		font-size: 18px;
+		font-weight: bold;
+		color: #AEEFF0;
+		letter-spacing: 4px;
+		margin-top: 6px;
+	}
+	.stats {
+		flex-direction: row;
+		justify-content: space-between;
+		width: 100%;
+		margin-bottom: 28px;
+	}
+	.stat {
+		flex: 1;
+		align-items: center;
+	}
+	.stat-val {
+		font-size: 18px;
+		font-weight: bold;
+		color: #ffffff;
+	}
+	.stat-label {
+		font-size: 9px;
+		color: rgba(255, 255, 255, 0.5);
+		margin-top: 6px;
+		letter-spacing: 1px;
+	}
+	.tagline {
+		font-size: 13px;
+		color: rgba(255, 255, 255, 0.9);
+		text-align: center;
+		line-height: 22px;
+		margin-bottom: 18px;
+	}
+	.hint {
+		font-size: 9px;
+		color: rgba(255, 255, 255, 0.4);
+		letter-spacing: 1px;
+		margin-bottom: 24px;
+	}
+	.close-btn {
+		width: 100%;
+		padding-top: 16px;
+		padding-bottom: 16px;
+		border-radius: 999px;
+		background-color: rgba(255, 255, 255, 0.92);
+		align-items: center;
+	}
+	.close-text {
+		font-size: 12px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 3px;
+	}
+</style>

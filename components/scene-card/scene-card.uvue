@@ -28,6 +28,7 @@
 		overflow: hidden;
 		margin-right: 24px;
 		position: relative;
+		flex-shrink: 0;
 	}
 	.bg { width: 100%; height: 100%; }
 	.shade {

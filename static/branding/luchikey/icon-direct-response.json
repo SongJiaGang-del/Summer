@@ -1,0 +1,42 @@
+{
+  "status": 200,
+  "ok": true,
+  "contentType": "application/json; charset=utf-8",
+  "keys": [
+    "created",
+    "data",
+    "background",
+    "output_format",
+    "quality",
+    "size",
+    "model",
+    "usage"
+  ],
+  "sample": {
+    "created": 1781181251,
+    "data": [
+      {
+        "b64_json": "iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAIAAADwf7zUAABhWmNhQlgAAGFaanVtYgAAAB5qdW1kYzJw...<1592140 chars>",
+        "revised_prompt": "Premium square mobile app icon for a Chinese summer music app titled '夏日律动' / Su...<618 chars>"
+      }
+    ],
+    "background": "auto",
+    "output_format": "png",
+    "quality": "auto",
+    "size": "1024x1024",
+    "model": "gpt-image-2-codex",
+    "usage": {
+      "input_tokens": 139,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 139
+      },
+      "output_tokens": 439,
+      "output_tokens_details": {
+        "image_tokens": 439,
+        "text_tokens": 0
+      },
+      "total_tokens": 578
+    }
+  }
+}

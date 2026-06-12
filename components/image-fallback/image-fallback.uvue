@@ -4,7 +4,7 @@
 			<view class="shimmer" :style="shimmerStyle"></view>
 		</view>
 		<view v-if="failed" class="failed">
-			<text class="failed-emoji">🌊</text>
+			<icon-image-broken :size="30" color="rgba(27, 73, 101, 0.45)"></icon-image-broken>
 			<text class="failed-text">图片加载失败</text>
 		</view>
 		<image v-if="!failed"
@@ -20,6 +20,8 @@
 
 <script setup lang="uts">
 	import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+	import { onFrame, offFrame } from '@/utils/ticker.uts'
+	import IconImageBroken from '@/components/icons/icon-image-broken.uvue'
 
 	const props = defineProps({
 		src: { type: String, required: true },
@@ -36,19 +38,20 @@
 	const shimmerStyle = computed<string>(() : string => 'transform: translateX(' + shimmerPos.value + '%)')
 	const imgStyle = computed<string>(() : string => 'opacity:' + (loaded.value ? 1 : 0))
 
-	let shimmerTimer : number = 0
+	let shimmerFrameId : number = 0
 	function stopShimmer() {
-		if (shimmerTimer != 0) {
-			clearInterval(shimmerTimer)
-			shimmerTimer = 0
+		if (shimmerFrameId != 0) {
+			offFrame(shimmerFrameId)
+			shimmerFrameId = 0
 		}
 	}
 	function startShimmer() {
-		if (shimmerTimer != 0) return
-		shimmerTimer = setInterval(() => {
-			shimmerPos.value += 2
+		if (shimmerFrameId != 0) return
+		// 原 +2%/30ms ≈ 67%/s，按 dt 推进
+		shimmerFrameId = onFrame((dt : number) => {
+			shimmerPos.value += dt * 0.067
 			if (shimmerPos.value > 100) shimmerPos.value = -100
-		}, 30) as number
+		})
 	}
 	onMounted(() => {
 		// 自驱动 shimmer：每 30ms 推 2%，加载结束后停止计时器。
@@ -106,10 +109,6 @@
 		background-color: rgba(27, 73, 101, 0.12);
 		align-items: center;
 		justify-content: center;
-	}
-	.failed-emoji {
-		font-size: 28px;
-		opacity: 0.5;
 	}
 	.failed-text {
 		font-size: 10px;

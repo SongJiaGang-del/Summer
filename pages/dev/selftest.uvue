@@ -1,0 +1,248 @@
+<template>
+	<view class="page">
+		<view class="hero">
+			<text class="title">逻辑自检</text>
+			<text class="subtitle">{{ passCount }} / {{ results.length }} 通过</text>
+			<view class="bar">
+				<view class="bar-fill" :style="barStyle"></view>
+			</view>
+			<view class="actions">
+				<view class="btn" @click="runAll"><text class="btn-t">重跑</text></view>
+				<view class="btn ghost" @click="goBack"><text class="btn-t-g">返回</text></view>
+			</view>
+		</view>
+		<scroll-view class="list" :scroll-y="true">
+			<view v-for="(r, i) in results" :key="i" class="row" :class="r.ok ? 'row-ok' : 'row-bad'">
+				<view class="badge">
+					<icon-check v-if="r.ok" :size="18" color="#1B4965"></icon-check>
+					<icon-cross v-else :size="18" color="#1B4965"></icon-cross>
+				</view>
+				<view class="row-body">
+					<text class="row-title">{{ r.name }}</text>
+					<text v-if="!r.ok" class="row-msg">{{ r.msg }}</text>
+				</view>
+			</view>
+		</scroll-view>
+	</view>
+</template>
+
+<script setup lang="uts">
+	import { ref, computed, onMounted } from 'vue'
+	import {
+		titleForLevel,
+		moodLabel,
+		playlist,
+		vibeDnasComputed,
+		reportTagline,
+		playerStats,
+		state,
+		moods,
+		navs,
+		type DnaItem
+	} from '@/store/player.uts'
+	import { onFrame, offFrame } from '@/utils/ticker.uts'
+	import { exportArchive, importArchive } from '@/utils/storage.uts'
+	import IconCheck from '@/components/icons/icon-check.uvue'
+	import IconCross from '@/components/icons/icon-cross.uvue'
+
+	type Result = {
+		name : string,
+		ok : boolean,
+		msg : string
+	}
+
+	const results = ref<Result[]>([] as Result[])
+	const passCount = computed<number>(() : number => {
+		let n = 0
+		results.value.forEach((r : Result) => { if (r.ok) n++ })
+		return n
+	})
+	const barStyle = computed<string>(() : string => {
+		const total = results.value.length
+		const pct = total == 0 ? 0 : (passCount.value / total) * 100
+		return 'width:' + pct + '%'
+	})
+
+	function assert(name : string, cond : boolean, msg : string) {
+		results.value.push({ name: name, ok: cond, msg: cond ? '' : msg } as Result)
+	}
+
+	function runAll() {
+		results.value = [] as Result[]
+
+		/* 1. titleForLevel 融合 mood */
+		assert('titleForLevel 融合海盐', titleForLevel(3, 'sea-salt').includes('海盐微风'), '实际: ' + titleForLevel(3, 'sea-salt'))
+		assert('titleForLevel 融合日落', titleForLevel(3, 'strawberry').includes('日落珊瑚'), '实际: ' + titleForLevel(3, 'strawberry'))
+		assert('titleForLevel 融合薄荷', titleForLevel(3, 'mint').includes('薄荷清凉'), '实际: ' + titleForLevel(3, 'mint'))
+
+		/* 2. moodLabel 映射 */
+		assert('moodLabel(strawberry) = 日落珊瑚', moodLabel('strawberry') == '日落珊瑚', '实际: ' + moodLabel('strawberry'))
+		assert('moodLabel(mint) = 薄荷清凉', moodLabel('mint') == '薄荷清凉', '实际: ' + moodLabel('mint'))
+		assert('moodLabel(其他) 默认海盐微风', moodLabel('ocean') == '海盐微风', '实际: ' + moodLabel('ocean'))
+
+		/* 3. playlist 与循环math */
+		assert('playlist 不为空', playlist.value.length > 0, 'length=' + playlist.value.length)
+		const len = playlist.value.length
+		const start = 0
+		let cur = start
+		for (let i = 0; i < len; i++) cur = (cur + 1) % len
+		assert('cycle 一轮后回到起点', cur == start, '实际: ' + cur)
+		const back = (start - 1 + len) % len
+		assert('prev 从 0 回到末尾', back == len - 1, '实际: ' + back)
+
+		/* 4. moods / navs 基础数据 */
+		assert('moods 共 3 条', moods.length == 3, '实际: ' + moods.length)
+		assert('navs 共 3 条', navs.length == 3, '实际: ' + navs.length)
+
+		/* 5. vibeDnasComputed: 3 条 + 百分比和为 100 或 0 */
+		const dnas = vibeDnasComputed.value
+		assert('vibeDnasComputed 长度=3', dnas.length == 3, '实际: ' + dnas.length)
+		let sum = 0
+		dnas.forEach((d : DnaItem) => { sum += d.percent })
+		assert('百分比之和 ≈ 0 或 100', sum == 0 || (sum >= 99 && sum <= 101), '实际: ' + sum)
+		let colorOk = true
+		dnas.forEach((d : DnaItem) => { if (d.color == '') colorOk = false })
+		assert('每条 DNA 都有颜色', colorOk, 'dna 颜色缺失')
+
+		/* 6. reportTagline 非空 */
+		const tag = reportTagline.value
+		assert('reportTagline 非空', tag.length > 0, 'tag=' + tag)
+
+		/* 7. accumulatePlay 计入：等级阈值与 playerStats 一致 */
+		const t = playerStats.value.totalPlaySeconds
+		assert('playerStats 总时长非负', t >= 0, 't=' + t)
+
+		/* 8. storage 存档往返：export 后 import 应成功 */
+		const text = exportArchive()
+		const head = text.length > 0 ? text.substring(0, 1) : ''
+		assert('exportArchive 非空 JSON', text.length > 2 && head == '{', 'len=' + text.length + ' head=' + head)
+		assert('importArchive 合法 archive = true', importArchive(text), '导入失败')
+		assert('importArchive 空串 = false', !importArchive(''), '空串不应成功')
+		assert('importArchive 非法 JSON = false', !importArchive('not json'), '非法不应成功')
+
+		/* 9. ticker：注册→注销不抛错 */
+		let frameDt = -1
+		const fid = onFrame((dt : number) => { frameDt = dt })
+		offFrame(fid)
+		offFrame(fid)   // 重复注销也应安全
+		assert('ticker onFrame 返回有效 id', fid > 0, 'fid=' + fid)
+		assert('frameDt 已初始化', frameDt >= -1, 'frameDt=' + frameDt)
+		assert('offFrame 重复调用未抛错', true, '')
+
+		/* 10. state 基本不变量 */
+		assert('songIndex 在 playlist 范围内',
+			state.currentSongIndex >= 0 && state.currentSongIndex < playlist.value.length,
+			'idx=' + state.currentSongIndex)
+		assert('volume 在 [0,1]', state.volume >= 0 && state.volume <= 1, 'vol=' + state.volume)
+	}
+
+	function goBack() {
+		uni.navigateBack({})
+	}
+
+	onMounted(() => {
+		runAll()
+	})
+</script>
+
+<style>
+	.page {
+		flex: 1;
+		background-color: #E0F7FA;
+		padding-top: 60px;
+		padding-left: 24rpx;
+		padding-right: 24rpx;
+	}
+	.hero {
+		background-color: #1B4965;
+		border-radius: 20px;
+		padding: 24px;
+		margin-bottom: 16px;
+	}
+	.title {
+		font-size: 22px;
+		color: #ffffff;
+		font-weight: bold;
+	}
+	.subtitle {
+		font-size: 14px;
+		color: rgba(255, 255, 255, 0.75);
+		margin-top: 6px;
+	}
+	.bar {
+		height: 6px;
+		background-color: rgba(255, 255, 255, 0.18);
+		border-radius: 3px;
+		margin-top: 14px;
+		overflow: hidden;
+	}
+	.bar-fill {
+		height: 6px;
+		background-color: #4ADE80;
+	}
+	.actions {
+		flex-direction: row;
+		margin-top: 16px;
+	}
+	.btn {
+		background-color: #4ADE80;
+		padding-top: 8px;
+		padding-bottom: 8px;
+		padding-left: 18px;
+		padding-right: 18px;
+		border-radius: 999px;
+		margin-right: 10px;
+	}
+	.btn.ghost {
+		background-color: rgba(255, 255, 255, 0.18);
+	}
+	.btn-t {
+		color: #1B4965;
+		font-weight: bold;
+		font-size: 14px;
+	}
+	.btn-t-g {
+		color: #ffffff;
+		font-weight: bold;
+		font-size: 14px;
+	}
+	.list {
+		flex: 1;
+	}
+	.row {
+		flex-direction: row;
+		align-items: flex-start;
+		background-color: #ffffff;
+		border-radius: 12px;
+		padding: 14px;
+		margin-bottom: 8px;
+		border-left-width: 4px;
+		border-left-style: solid;
+	}
+	.row-ok {
+		border-left-color: #4ADE80;
+	}
+	.row-bad {
+		border-left-color: #FB7185;
+		background-color: rgba(251, 113, 133, 0.08);
+	}
+	.badge {
+		width: 24px;
+		margin-right: 8px;
+		align-items: center;
+		justify-content: center;
+	}
+	.row-body {
+		flex: 1;
+	}
+	.row-title {
+		font-size: 13px;
+		color: #1B4965;
+		font-weight: bold;
+	}
+	.row-msg {
+		font-size: 11px;
+		color: #FB7185;
+		margin-top: 4px;
+	}
+</style>

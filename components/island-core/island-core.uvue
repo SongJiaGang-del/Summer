@@ -74,9 +74,9 @@
 	watch(() : number => props.level, (newLv : number, oldLv : number) => {
 		tweenRef(lvNum, newLv, { duration: 600, ease: Ease.outBack, onComplete: null })
 		if (newLv > oldLv) {
-			// 升级庆祝：core 大跳一下
-			tweenRef(scale, 1.15, { duration: 240, ease: Ease.outBack, onComplete: () => {
-				tweenRef(scale, 1, { duration: 320, ease: Ease.outBack, onComplete: null })
+			// 升级庆祝：core 大跳一下，回落用弹簧带可见回弹
+			tweenRef(scale, 1.15, { duration: 240, ease: Ease.outQuart, onComplete: () => {
+				tweenRef(scale, 1, { duration: 620, ease: Ease.springBouncy, onComplete: null })
 			} })
 		}
 	})
@@ -133,10 +133,11 @@
 		font-weight: bold;
 		margin-top: 4px;
 		letter-spacing: 1px;
+		
 	}
 	.badge {
 		position: absolute;
-		bottom: -14px;
+		bottom: 18px;
 		background-color: #1B4965;
 		padding-left: 20px;
 		padding-right: 20px;

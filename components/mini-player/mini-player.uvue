@@ -1,9 +1,14 @@
 <template>
-	<glass-panel rounded="r-md" variant="medium" pad="p-sm">
+	<view class="panel-hit" @click="$emit('expand')">
+	<glass-panel rounded="r-md" variant="frosted" pad="p-sm">
+		<view class="progress-line">
+			<view class="progress-fill" :style="progressStyle"></view>
+		</view>
 		<view class="mini">
 			<view class="left">
-				<view class="play-btn" @click="$emit('toggle')">
-					<text class="play-icon">{{ playing ? '⏸' : '▶' }}</text>
+				<view class="play-btn" @click.stop="$emit('toggle')">
+					<icon-pause v-if="playing" :size="18" color="#ffffff"></icon-pause>
+					<icon-play v-else :size="18" color="#ffffff"></icon-play>
 				</view>
 				<view class="meta">
 					<text class="t">{{ title }}</text>
@@ -11,23 +16,56 @@
 				</view>
 			</view>
 			<view class="right">
-				<view class="ctl" @click="$emit('prev')"><text class="ctl-icon">⏮</text></view>
-				<view class="ctl" @click="$emit('next')"><text class="ctl-icon">⏭</text></view>
+				<view class="ctl" @click.stop="$emit('prev')"><icon-prev :size="18" color="rgba(27, 73, 101, 0.45)"></icon-prev></view>
+				<view class="ctl" @click.stop="$emit('next')"><icon-next :size="18" color="rgba(27, 73, 101, 0.45)"></icon-next></view>
 			</view>
 		</view>
 	</glass-panel>
+	</view>
 </template>
 
 <script setup lang="uts">
-	defineProps({
+	import { computed } from 'vue'
+	import IconPlay from '@/components/icons/icon-play.uvue'
+	import IconPause from '@/components/icons/icon-pause.uvue'
+	import IconPrev from '@/components/icons/icon-prev.uvue'
+	import IconNext from '@/components/icons/icon-next.uvue'
+
+	const props = defineProps({
 		title: { type: String, required: true },
 		artist: { type: String, required: true },
-		playing: { type: Boolean, default: false }
+		playing: { type: Boolean, default: false },
+		progress: { type: Number, default: 0 },
+		color: { type: String, default: '#1B4965' }
 	})
-	defineEmits(['toggle', 'prev', 'next'])
+	defineEmits(['toggle', 'prev', 'next', 'expand'])
+
+	const progressStyle = computed<string>(() : string => {
+		let p = props.progress
+		if (p < 0) p = 0
+		if (p > 100) p = 100
+		return 'width:' + p + '%;background-color:' + props.color
+	})
 </script>
 
 <style>
+	.panel-hit {
+		position: relative;
+	}
+	.progress-line {
+		position: absolute;
+		left: 16px;
+		right: 16px;
+		top: 0;
+		height: 2px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.10);
+		overflow: hidden;
+	}
+	.progress-fill {
+		height: 2px;
+		border-radius: 999px;
+	}
 	.mini {
 		flex-direction: row;
 		align-items: center;
@@ -45,10 +83,6 @@
 		align-items: center;
 		justify-content: center;
 		margin-right: 12px;
-	}
-	.play-icon {
-		color: #ffffff;
-		font-size: 16px;
 	}
 	.meta { flex-direction: column; }
 	.t {
@@ -71,9 +105,5 @@
 		height: 36px;
 		align-items: center;
 		justify-content: center;
-	}
-	.ctl-icon {
-		font-size: 14px;
-		color: rgba(27, 73, 101, 0.45);
 	}
 </style>

@@ -1,0 +1,42 @@
+{
+  "status": 200,
+  "ok": true,
+  "contentType": "application/json; charset=utf-8",
+  "keys": [
+    "created",
+    "data",
+    "background",
+    "output_format",
+    "quality",
+    "size",
+    "model",
+    "usage"
+  ],
+  "sample": {
+    "created": 1781181339,
+    "data": [
+      {
+        "b64_json": "iVBORw0KGgoAAAANSUhEUgAABAAAAAYACAIAAABn4K39AABhWmNhQlgAAGFaanVtYgAAAB5qdW1kYzJw...<3087620 chars>",
+        "revised_prompt": "Vertical mobile launch poster illustration for a Chinese summer music app titled...<620 chars>"
+      }
+    ],
+    "background": "auto",
+    "output_format": "png",
+    "quality": "auto",
+    "size": "1024x1536",
+    "model": "gpt-image-2-codex",
+    "usage": {
+      "input_tokens": 135,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 135
+      },
+      "output_tokens": 1372,
+      "output_tokens_details": {
+        "image_tokens": 1372,
+        "text_tokens": 0
+      },
+      "total_tokens": 1507
+    }
+  }
+}

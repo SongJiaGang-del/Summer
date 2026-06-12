@@ -13,6 +13,13 @@
 				"navigationStyle": "custom",
 				"navigationBarTitleText": "场景歌单"
 			}
+		},
+		{
+			"path": "pages/dev/selftest",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "逻辑自检"
+			}
 		}
 	],
 	"globalStyle": {

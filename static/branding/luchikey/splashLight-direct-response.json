@@ -1,0 +1,42 @@
+{
+  "status": 200,
+  "ok": true,
+  "contentType": "application/json; charset=utf-8",
+  "keys": [
+    "created",
+    "data",
+    "background",
+    "output_format",
+    "quality",
+    "size",
+    "model",
+    "usage"
+  ],
+  "sample": {
+    "created": 1781182587,
+    "data": [
+      {
+        "b64_json": "iVBORw0KGgoAAAANSUhEUgAABAAAAAYACAIAAABn4K39AABhWmNhQlgAAGFaanVtYgAAAB5qdW1kYzJw...<2752928 chars>",
+        "revised_prompt": "Fresh light pastel vertical app launch poster for a Chinese summer music app tit...<868 chars>"
+      }
+    ],
+    "background": "auto",
+    "output_format": "png",
+    "quality": "auto",
+    "size": "1024x1536",
+    "model": "gpt-image-2-codex",
+    "usage": {
+      "input_tokens": 197,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 197
+      },
+      "output_tokens": 1372,
+      "output_tokens_details": {
+        "image_tokens": 1372,
+        "text_tokens": 0
+      },
+      "total_tokens": 1569
+    }
+  }
+}

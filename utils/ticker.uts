@@ -1,0 +1,64 @@
+/**
+ * 中心帧调度器。
+ *
+ * 全局只有一个 setInterval(16ms)。组件通过 onFrame 注册逐帧回调，
+ * 返回一个 id，用 offFrame(id) 注销。没有任何注册者时 ticker 自动停止，
+ * 新增注册时自动启动 —— 避免多个组件各开一个 setInterval 空耗电量。
+ *
+ * 回调签名：(dtMs: number) => void，dtMs 为距上一帧的毫秒数。
+ */
+
+type FrameCb = (dtMs : number) => void
+
+type FrameEntry = {
+	id : number,
+	cb : FrameCb
+}
+
+const FRAME_MS = 16
+const entries : FrameEntry[] = []
+let tickerId : number = 0
+let nextId = 1
+let lastTime = 0
+
+function tick() {
+	const now = Date.now()
+	const dt = lastTime == 0 ? FRAME_MS : (now - lastTime)
+	lastTime = now
+	// 复制一份引用遍历，回调内注销不影响本帧
+	const snapshot : FrameEntry[] = []
+	entries.forEach((e : FrameEntry) => { snapshot.push(e) })
+	snapshot.forEach((e : FrameEntry) => { e.cb(dt) })
+
+	if (entries.length == 0 && tickerId != 0) {
+		clearInterval(tickerId)
+		tickerId = 0
+		lastTime = 0
+	}
+}
+
+function ensureTicker() {
+	if (tickerId != 0) return
+	lastTime = 0
+	tickerId = setInterval(() => { tick() }, FRAME_MS) as number
+}
+
+/** 注册逐帧回调，返回注销用的 id */
+export function onFrame(cb : FrameCb) : number {
+	const id = nextId
+	nextId++
+	entries.push({ id: id, cb: cb })
+	ensureTicker()
+	return id
+}
+
+/** 注销逐帧回调 */
+export function offFrame(id : number) {
+	const idx = entries.findIndex((e : FrameEntry) : boolean => e.id == id)
+	if (idx >= 0) entries.splice(idx, 1)
+	if (entries.length == 0 && tickerId != 0) {
+		clearInterval(tickerId)
+		tickerId = 0
+		lastTime = 0
+	}
+}

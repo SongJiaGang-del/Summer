@@ -1,10 +1,11 @@
 <template>
-	<view v-if="rendered" class="splash" :style="rootStyle">
+	<view v-if="rendered" class="splash" :style="rootStyle" @click="skip">
 		<text class="brand" :style="brandStyle">夏日律动</text>
 		<text class="sub" :style="subStyle">SUMMER · BEATS</text>
 		<!-- 上升气泡：用 index 索引避免 v-for 解包 Ref 问题 -->
 		<view v-for="(m, i) in metas" :key="m.id" class="bubble"
 			:style="bubbleStyle(i)"></view>
+		<text class="skip-hint">轻点任意处跳过</text>
 	</view>
 </template>
 
@@ -44,6 +45,25 @@
 			+ ';transform: translateY(' + ys[i].value + 'px)'
 	}
 
+	let finished = false
+	function finish() {
+		if (finished) return
+		finished = true
+		tweenRef(rootOpacity, 0, {
+			duration: 500, ease: Ease.inOutQuad,
+			onComplete: () => {
+				rendered.value = false
+				emit('done')
+			}
+		})
+	}
+	function skip() {
+		if (finished) return
+		finished = true
+		rendered.value = false
+		emit('done')
+	}
+
 	onMounted(() => {
 		// 生成 8 个气泡
 		const arr : BubbleMeta[] = []
@@ -81,13 +101,7 @@
 
 		// 整屏淡出
 		setTimeout(() => {
-			tweenRef(rootOpacity, 0, {
-				duration: 500, ease: Ease.inOutQuad,
-				onComplete: () => {
-					rendered.value = false
-					emit('done')
-				}
-			})
+			finish()
 		}, 1600)
 	})
 </script>
@@ -100,6 +114,13 @@
 		align-items: center;
 		justify-content: center;
 		z-index: 200;
+	}
+	.skip-hint {
+		position: absolute;
+		bottom: 48px;
+		font-size: 10px;
+		color: rgba(255, 255, 255, 0.4);
+		letter-spacing: 2px;
 	}
 	.brand {
 		font-size: 36px;

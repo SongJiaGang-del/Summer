@@ -1,7 +1,7 @@
 import { reactive, computed, ref, watch, type Ref } from 'vue'
 import { hexToRgb, type RGB } from '@/utils/color.uts'
 import { tweenColor } from '@/composables/use-anim.uts'
-import { saveStr, saveNum, saveJson, loadStr, loadNum, loadInt, loadJson, K } from '@/utils/storage.uts'
+import { saveStr, saveNum, saveJson, loadStr, loadNum, loadInt, loadArray, K } from '@/utils/storage.uts'
 
 export type Song = {
 	title : string,
@@ -10,28 +10,53 @@ export type Song = {
 	fallbackImage : string,
 	audioUrl : string,
 	moodId : string,
-	lyrics : string[]
+	lyrics : string[],
+	/** 每行歌词出现时间（秒），与 lyrics 严格并行；为空表示无时间轴（纯音乐/上传歌），退回按进度线性显示 */
+	lyricTimes : number[],
+	/** 时长（秒），0 表示未知（通常是远程示例曲，按播放时再读 duration） */
+	duration : number
+}
+
+export type UserSongInput = {
+	title : string,
+	audioUrl : string
 }
 
 export type Mood = {
 	id : string,
 	color : string,
 	bg : string,
-	icon : string
+	iconName : string
 }
 
-export type Category = {
+export type SceneTemplate = {
 	id : string,
 	name : string,
 	image : string,
 	fallbackImage : string,
 	moodId : string,
-	desc : string
+	desc : string,
+	narrative : string,
+	suggestedHour : string,
+	songIndices : number[]
 }
+
+export type Category = SceneTemplate
 
 export type DnaItem = {
 	name : string,
 	percent : number,
+	color : string
+}
+
+export type TopSongItem = {
+	title : string,
+	count : number
+}
+
+export type SpiritAnimal = {
+	name : string,
+	desc : string,
 	color : string
 }
 
@@ -46,97 +71,254 @@ export type Bottle = {
 export type NavItem = {
 	id : string,
 	name : string,
-	icon : string
+	iconName : string
 }
 
+export type PlayMode = 'sequence' | 'repeat-one' | 'shuffle'
+
 export const navs : NavItem[] = [
-	{ id: 'p', name: '律动', icon: '♪' },
-	{ id: 'd', name: '发现', icon: '✦' },
-	{ id: 'i', name: '小岛', icon: '⌘' }
+	{ id: 'p', name: '律动', iconName: 'music-note' },
+	{ id: 'd', name: '发现', iconName: 'compass' },
+	{ id: 'i', name: '小岛', iconName: 'island' }
 ]
 
-export const playlist : Song[] = [
+const basePlaylist : Song[] = [
+	// 本地歌曲（演示用）。lyrics 与 lyricTimes 严格并行：lyricTimes[i] 为第 i 行的出现秒数。纯音乐 lyricTimes 为空。
 	{
-		title: '夏日清风',
-		artist: '意大利苏打',
-		cover: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
-		fallbackImage: '/static/images/fallback-sea.svg',
-		audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
-		moodId: 'sea-salt',
-		lyrics: ['夏天的风缓缓吹过', '穿过薄荷味的午后', '冰镇苏打在杯中冒泡', '旋律带我潜入深蓝', '享受这一刻清凉', '让忧虑随潮汐远去', '心跳随波浪起伏', '夏天永不落幕', '每一刻都值得珍藏', '在这蔚蓝的季节里']
+		title: "Beauty And A Beat",
+		artist: "Justin Bieber & Nicki Minaj",
+		cover: "/static/images/cover-coral-dusk.jpg",
+		fallbackImage: "/static/images/fallback-sunset.svg",
+		audioUrl: "/static/audio/beauty-and-a-beat.mp3",
+		duration: 228,
+		moodId: "strawberry",
+		lyrics: ["Lyrics by：Max Martin/Zedd/Savan Kotecha/Nicki Minaj", "Yeah", "Young Money", "Nicki Minaj", "Justin", "Show you off", "彰显你的风采", "Tonight I wanna show you off aye aye aye", "今夜我就要让你惊艳四座", "What you got", "你所拥有的魅力", "A billion could've never bought aye aye aye", "是即便十亿财富也无从购得的", "We gonna party like it's 3012 tonight", "今夜我们要尽情狂欢 仿佛身处3012年一般", "I wanna show you all the finer things in life", "我愿为你悉数呈现这世间所有极致的美好", "So just forget about the world we young tonight", "所以暂且忘却这纷扰世界 今夜我们正值青春", "I'm coming for ya I'm coming for ya", "我为你而来 为你奔赴而来", "Cause all I need is a beauty and a beat", "因为我所需要的 不过是一位佳人与一段旋律", "Who can make my life complete", "是谁能让我的人生圆满呢", "It's all 'bout you", "是你啊", "When the music makes you move", "当音乐令你情不自禁地舞动", "Baby do it like you do", "亲爱的 尽情绽放你的本色吧", "'Cause", "因为", "Body rock", "尽情摇摆", "Girl I can feel your body rock aye aye aye", "女孩 我能感受到你身体的律动", "Take a bow", "谢幕致意吧", "You're on the hottest ticket now ooh aye aye aye", "现在你已是最炙手可热的焦点", "We gonna party like it's 3012 tonight", "今夜我们要尽情狂欢 仿佛身处3012年一般", "I want to show you all the finer things in life", "我愿为你悉数呈现这世间所有极致的美好", "So just forget about the world we young tonight", "所以暂且忘却这纷扰世界 今夜我们正值青春", "I'm coming for ya I'm coming for ya", "我为你而来 为你奔赴而来", "Cause all I need is a beauty and a beat", "因为我所需要的 不过是一位佳人与一段旋律", "Who can make my life complete", "是谁能让我的人生圆满呢", "It's all 'bout you", "是你啊", "When the music makes you move", "当音乐令你情不自禁地舞动", "Baby do it like you do", "亲爱的 尽情绽放你的本色吧", "In time ink lines", "时光荏苒 笔墨留痕", "******* couldn't get on my incline", "那些不入流的家伙岂能与我相提并论", "World tours it's mine", "全球巡演 尽在我掌控之中", "Ten little letters on a big sign", "巨幅海报上印着十个夺目的字", "Justin Bieber you know I'mma hit 'em with the ether", "Justin Bieber 你知道我会用超凡实力让全场相形见绌", "Buns out wiener but I gotta keep an eye out for Selener", "可以肆意妄为 但我还得对Selena Gomez留个心眼", "Beauty beauty and the beast", "美人 美人与野兽", "Beauty from the East", "来自东方的美人", "Beautiful confessions of the priest", "神父那般动人的倾诉", "Beast beauty from the streets beat will get deceased", "街头诞生的美人啊 节奏终有结束的时候", "Every time Beauty on the beat", "但每次我都能在节奏上游刃有余", "Body rock", "身体随着节奏摇摆", "Girl I wanna feel your body rock", "女孩 我能感受到你身体随节奏摇摆", "Cause all I need is a beauty and a beat", "因为我所需要的 不过是一位佳人与一段旋律", "Who can make my life complete", "是谁能让我的人生圆满呢", "It's all 'bout you", "是你啊", "When the music makes you move", "当音乐令你情不自禁地舞动", "Baby do it like you do", "亲爱的 尽情绽放你的本色吧"],
+		lyricTimes: [0.0, 3.0, 6.0, 9.0, 11.0, 15.0, 17.0, 17.0, 22.0, 22.0, 25.0, 25.0, 30.0, 30.0, 34.0, 34.0, 37.0, 37.0, 41.0, 41.0, 44.0, 44.0, 53.0, 53.0, 59.0, 59.0, 65.0, 65.0, 68.0, 68.0, 74.0, 74.0, 90.0, 90.0, 92.0, 92.0, 97.0, 97.0, 100.0, 100.0, 105.0, 105.0, 109.0, 109.0, 112.0, 112.0, 116.0, 116.0, 119.0, 119.0, 128.0, 128.0, 134.0, 134.0, 140.0, 140.0, 143.0, 143.0, 150.0, 150.0, 151.0, 151.0, 153.0, 153.0, 155.0, 155.0, 157.0, 157.0, 161.0, 161.0, 165.0, 165.0, 166.0, 166.0, 167.0, 167.0, 168.0, 168.0, 171.0, 171.0, 172.0, 172.0, 174.0, 174.0, 179.0, 179.0, 188.0, 188.0, 194.0, 194.0, 199.0, 199.0, 203.0, 203.0, 208.0]
 	},
 	{
-		title: '蔚蓝海岸',
-		artist: '冲浪乐队',
-		cover: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=600&q=80',
-		fallbackImage: '/static/images/fallback-sea.svg',
-		audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
-		moodId: 'sea-salt',
-		lyrics: ['追逐那抹永恒的蓝', '阳光是金色的外衣', '这一刻不需要终点', '我们都是自由的鱼', '咸咸的海水在指尖', '巨浪正在头顶翻滚']
+		title: "Peaches",
+		artist: "Justin Bieber",
+		cover: "/static/images/cover-citrus.jpg",
+		fallbackImage: "/static/images/fallback-sunset.svg",
+		audioUrl: "/static/audio/peaches.aac",
+		duration: 189,
+		moodId: "strawberry",
+		lyrics: ["Peaches -Justin Bieber/Daniel Caesar/Giveon", "Lyrics by：Justin Bieber/Andrew Wotman/Ashton Simmonds/Giveon Dezmann Evans/Bernard Harvey/Luis Manuel Martinez Jr/Louis Bell/Felisha King/Matthew Sean Leon/Keavan Yazdani/Aaron Simmonds", "I got my peaches out in Georgia", "我把漂亮女孩带到乔治亚州去", "Oh yeah s**t", "I get my w**d from California", "我的**是从加州买的", "That's that s**t", "就是那种东西", "I took my chick up to the North yeah", "我带我的女人去了北方", "Bada*s b***h", "漂亮的小妞", "I get my light right from the source yeah", "明媚阳光照耀着我的世界", "Yeah that's it", "就是这样", "And I say oh", "我说", "Oh", "The way I breathe you in", "感受着你的气息", "In", "It's the texture of your skin", "你肌肤的触感让人着迷", "I wanna wrap my arms around you baby and never let you go", "我想张开双臂 拥你入怀 宝贝 绝不让你走", "And I say oh", "我说", "There's nothing like your touch", "你指尖的温柔无与伦比", "It's the way you lift me up", "我所有的快乐都来自于你", "Yeah and I'll be right here with you till the end of time", "我会伴你左右 直到天荒地老", "I got my peaches out in Georgia", "我把漂亮女孩带到乔治亚州去", "Oh yeah s**t", "I get my w**d from California", "我的**是从加州买的", "That's that s**t", "就是那种东西", "I took my chick up to the North yeah", "我带我的女人去了北方", "Bada*s b***h", "漂亮的小妞", "I get my light right from the source yeah", "明媚阳光照耀着我的世界", "Yeah that's it", "就是这样", "You ain't sure yet", "你还不确定", "But I'm for ya", "但我属于你", "All I can want", "我想要的全部", "All I can wish for", "我渴望的全部", "Nights alone that we miss more", "我希望有更多机会和你共度良宵", "And days we save as souvenirs", "每个日子都值得纪念", "There's no time I wanna make more time", "没时间了 我想要更多时间", "And give you my whole life", "把我一生都交给你", "I left my girl I'm in Mallorca", "我离开了我的女孩 我在马略卡岛", "Hate to leave her call it torture", "讨厌离她而去 这简直是折磨", "Remember when I couldn't hold her", "记得曾经我无法拥抱她", "Left her baggage for Rimowa", "把她的行李装进奢华箱包", "I got my peaches out in Georgia", "我把漂亮女孩带到乔治亚州去", "Oh yeah s**t", "I get my w**d from California", "我的**是从加州买的", "That's that s**t", "就是那种东西", "I took my chick up to the North yeah", "我带我的女人去了北方", "Bada*s b***h", "漂亮的小妞", "I get my light right from the source yeah", "明媚阳光照耀着我的世界", "Yeah that's it", "就是这样", "I get the feeling so I'm sure", "我懂这种感觉 所以我很确定", "Hand in my hand because I'm yours", "和我手牵手 因为我属于你", "I can't I can't pretend", "我不能伪装", "I can't ignore you're right for me", "不能视而不见 你就是对的人", "Don't think you wanna know just where I've been oh", "我觉得你不想知道我去过哪里", "Done bein' distracted", "不会再分散我的注意", "The one I need is right in my arms", "我需要的人就在我的怀里", "Your kisses taste the sweetest with mine", "你的吻对我来说无比甜蜜", "And I'll be right here with you till the end of time", "我会在你身旁陪伴你 直到地老天荒", "I got my peaches out in Georgia", "我把漂亮女孩带到乔治亚州去", "Oh yeah s**t", "I get my w**d from California", "我的**是从加州买的", "That's that s**t", "就是那种东西", "I took my chick up to the North yeah", "我带我的女人去了北方", "Bada*s b***h", "漂亮的小妞", "I get my light right from the source yeah", "明媚阳光照耀着我的世界", "Yeah that's it", "就是这样", "I got my peaches out in Georgia", "我把漂亮女孩带到乔治亚州去", "Oh yeah s**t", "I get my w**d from California", "我的**是从加州买的", "That's that s**t", "就是那种东西", "I took my chick up to the North yeah", "我带我的女人去了北方", "Bada*s b***h", "漂亮的小妞", "I get my light right from the source yeah", "明媚阳光照耀着我的世界", "Yeah that's it", "I got my peaches out in Georgia", "我把漂亮女孩带到乔治亚州去", "Oh yeah s**t", "I get my w**d from California", "我的**是从加州买的", "That's that s**t", "就是那种东西", "I took my chick up to the North yeah", "我带我的女人去了北方", "Bada*s b***h", "漂亮的小妞", "I get my light right from the source yeah", "明媚阳光照耀着我的世界", "Yeah that's it", "就是这样", "I got my peaches out in Georgia", "我把漂亮女孩带到乔治亚州去", "Oh yeah s**t", "I get my w**d from California", "我的**是从加州买的", "That's that s**t", "就是那种东西", "I took my chick up to the North yeah", "我带我的女人去了北方", "Bada*s b***h", "漂亮的小妞", "I get my light right from the source yeah", "明媚阳光照耀着我的世界", "Yeah that's it", "就是这样"],
+		lyricTimes: [0.0, 3.0, 9.0, 11.0, 11.0, 12.0, 14.0, 14.0, 15.0, 15.0, 16.0, 16.0, 17.0, 17.0, 19.0, 19.0, 20.0, 20.0, 21.0, 21.0, 22.0, 24.0, 24.0, 24.0, 27.0, 27.0, 31.0, 31.0, 33.0, 33.0, 35.0, 35.0, 39.0, 39.0, 41.0, 41.0, 43.0, 43.0, 44.0, 46.0, 46.0, 47.0, 47.0, 48.0, 48.0, 49.0, 49.0, 51.0, 51.0, 54.0, 54.0, 57.0, 57.0, 59.0, 59.0, 60.0, 60.0, 62.0, 62.0, 64.0, 64.0, 67.0, 67.0, 71.0, 71.0, 73.0, 73.0, 79.0, 79.0, 84.0, 84.0, 89.0, 89.0, 95.0, 95.0, 96.0, 96.0, 97.0, 99.0, 99.0, 100.0, 100.0, 102.0, 102.0, 103.0, 103.0, 104.0, 104.0, 105.0, 105.0, 108.0, 108.0, 110.0, 110.0, 111.0, 111.0, 114.0, 114.0, 118.0, 118.0, 119.0, 119.0, 122.0, 122.0, 125.0, 125.0, 127.0, 127.0, 128.0, 128.0, 129.0, 131.0, 131.0, 132.0, 132.0, 134.0, 134.0, 135.0, 135.0, 136.0, 136.0, 137.0, 137.0, 139.0, 139.0, 140.0, 142.0, 142.0, 143.0, 143.0, 144.0, 144.0, 145.0, 145.0, 147.0, 147.0, 148.0, 150.0, 150.0, 151.0, 152.0, 152.0, 153.0, 153.0, 155.0, 155.0, 156.0, 156.0, 158.0, 158.0, 159.0, 159.0, 160.0, 160.0, 161.0, 163.0, 163.0, 164.0, 164.0, 166.0, 166.0, 167.0, 167.0, 168.0, 168.0, 178.0]
 	},
 	{
-		title: '柠檬汽水',
-		artist: '海盐小队',
-		cover: 'https://images.unsplash.com/photo-1497436072909-60f360e1d4b1?auto=format&fit=crop&w=600&q=80',
-		fallbackImage: '/static/images/fallback-sunset.svg',
-		audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
-		moodId: 'strawberry',
-		lyrics: ['黄昏前最后一束光', '柠檬切片落入杯底', '气泡升起又破裂', '是我心跳的频率']
+		title: "Red Flavor 빨간 맛",
+		artist: "Red Velvet",
+		cover: "/static/images/cover-sand-bubble.jpg",
+		fallbackImage: "/static/images/fallback-sea.svg",
+		audioUrl: "/static/audio/red-flavor.aac",
+		duration: 191,
+		moodId: "sea-salt",
+		lyrics: ["词：Kenzie", "曲：Daniel Caesar/Ludwig Lindell", "빨간 맛 궁금해 honey", "很好奇红色味道 honey", "깨물면 점점 녹아든 스트로베리 그 맛", "咬下去 慢慢散发开的草莓味", "코너 캔디 샵 찾아 봐 baby", "去找找角落的糖果商店吧 baby", "내가 제일 좋아하는 건 여름 그 맛", "我最喜欢的是夏天的味道", "야자나무 그늘 아래 졸고 싶고", "想在椰子树的树荫下打盹", "뜨거운 여름밤의 바람은 불고", "炎热的夏夜吹着风", "너무 쉽게 사랑 빠져 버릴 나인틴", "轻易陷入爱河的19岁", "우린 제법 어울리고 또 멋져", "我们十分搭配", "좋아 첫눈에 반해 버린", "真好 一见就已倾心", "네가 자꾸만 생각나", "总是想起你", "내 방식대로 갈래", "要照我的方式来吗", "빨간 맛 궁금해 honey", "很好奇红色味道 honey", "깨물면 점점 녹아든 스트로베리 그 맛", "咬下去 慢慢散发开的草莓味", "코너 캔디 샵 찾아 봐 baby", "去找找角落的糖果商店吧 baby", "내가 제일 좋아하는 건 여름 그 맛", "我最喜欢的是夏天的味道", "일곱 개의 무지갯빛 문을 열어", "打开七色彩虹色的门", "너의 세상은 짜릿해 멋있어", "你的世界酷的让人眩晕", "태양보다 빨간 네 사랑의 색깔", "你爱情的颜色比太阳还红", "내가 가질래 내 멋대로 할래", "我能得到吗 能随心所欲吗", "날 봐 넌 뭘 생각하는데", "看着我 你在想什么", "오늘 뭘 할 수 있을까", "今天能做什么呢", "내 맘대로 상상해", "我想入非非", "빨간 맛 궁금해 honey", "很好奇红色味道 honey", "깨물면 점점 녹아든 스트로베리 그 맛", "咬下去 慢慢散发开的草莓味", "코너 캔디 샵 찾아 봐 baby", "去找找角落的糖果商店吧 baby", "내가 제일 좋아하는 건 여름 그 맛", "我最喜欢的是夏天的味道", "복숭아 주스 스윗 앤 사워 믹스 mood", "桃子果汁 酸甜混杂的mood", "네게 주고픈 칵테일을 brew red", "想送给你的鸡尾酒 brew red", "귓속이 쨍 코가 맹", "耳朵里轰响 鼻子里浓烈的气味", "상상 그 이상 기분", "超乎想象的心情", "Up and bang red", "Bet you wanna", "Bet you wanna dance like this", "외쳐보자 좋아해요 솔직히", "喊出来 实话说 喜欢你", "긴장해 땀이 뚝뚝 귀엽지", "紧张到汗水直下 真可爱", "사랑에 빠져 그을려", "陷入爱河 脸上火辣辣", "우린 red red ah", "我们 red red", "말 안 해도 알아주면 안 돼", "不言而喻当然不行", "내 맘은 더 커져 가는데", "我的心意越来越浓", "다 흘려버린 아이스크림같이", "像融化掉的冰淇淋", "이러다 녹을지 몰라", "这样做 不知道会融化掉", "그러니 말해 그래 그래 말해", "所以说吧 对 对 说吧", "그러니 말해 그래 그래 말해", "所以说吧 对 对 说吧", "너의 색깔로", "用你的颜色", "날 물들여줘 더 진하게 강렬하게", "请给我染色 更深 更浓", "빨간 맛 궁금해 honey", "很好奇红色味道 honey", "깨물면 점점 녹아든 스트로베리 그 맛", "咬下去 慢慢散发开的草莓味", "코너 캔디 샵 찾아 봐 baby", "去找找角落的糖果商店吧 baby", "내가 제일 좋아하는 건 여름 그 맛", "我最喜欢的是夏天的味道", "내가 제일 좋아하는 건 여름의 너", "我最喜欢的是夏天的你"],
+		lyricTimes: [0.0, 1.0, 2.0, 5.0, 5.0, 9.0, 9.0, 13.0, 13.0, 17.0, 17.0, 21.0, 21.0, 25.0, 25.0, 28.0, 28.0, 32.0, 32.0, 38.0, 38.0, 42.0, 42.0, 48.0, 48.0, 51.0, 51.0, 55.0, 55.0, 59.0, 59.0, 71.0, 71.0, 74.0, 74.0, 78.0, 78.0, 82.0, 82.0, 86.0, 86.0, 92.0, 92.0, 96.0, 96.0, 102.0, 102.0, 105.0, 105.0, 109.0, 109.0, 113.0, 113.0, 117.0, 117.0, 119.0, 119.0, 121.0, 121.0, 123.0, 123.0, 124.0, 124.0, 125.0, 125.0, 127.0, 129.0, 129.0, 130.0, 130.0, 132.0, 132.0, 133.0, 133.0, 137.0, 137.0, 141.0, 141.0, 143.0, 143.0, 147.0, 147.0, 151.0, 151.0, 155.0, 155.0, 159.0, 159.0, 163.0, 163.0, 167.0, 167.0, 170.0, 170.0, 174.0, 174.0, 178.0, 178.0, 183.0]
 	},
 	{
-		title: '深海潜行',
-		artist: 'Deep Blue',
-		cover: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?auto=format&fit=crop&w=600&q=80',
-		fallbackImage: '/static/images/fallback-mint.svg',
-		audioUrl: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3',
-		moodId: 'mint',
-		lyrics: ['潜入更深的蓝', '听见鲸鱼的低吟', '光线在头顶舞蹈', '世界变得很安静']
+		title: "Like 1999",
+		artist: "Valley",
+		cover: "/static/images/cover-azure-coast.jpg",
+		fallbackImage: "/static/images/fallback-sea.svg",
+		audioUrl: "/static/audio/like-1999.mp3",
+		duration: 145,
+		moodId: "sea-salt",
+		lyrics: ["TME享有本翻译作品的著作权", "Lyrics by：Alexander DiMauro/Karah McGillivray/Michael Brandolino/Robert Sowinski/Charli Adams/Jonathan David Capeci", "Woke up it's 2021", "醒醒 现在是2021年了", "I wanna get texts but I never wanna text back", "我想收到信息 但我不想回复", "F**k man I'm 2020 done", "兄弟 2020年已经过去了", "Another paycheck and I blew it but I'm still sad", "我花光了另一份工资 但我还是很难过", "We talk all of the time", "我们一直在聊天", "But it still feels like I'm just a voice on the line so", "但我依然觉得 我只是在煲电话粥而已 所以", "If you wanna come over watch Friends and then get high", "如果你想来一起看老友记 找点乐子", "Use my phone as a coaster we'll travel back in time", "把我的手机当作时光机 我们穿越回过去", "Lights on the ceiling we're more than a feeling", "天花板上绚烂的灯光 让我们的心中生出更多的情愫", "If you wanna come over act like it's 1999", "如果你想过来 假装现在是1999年", "Woke up had a dream about you", "醒过来 做了一个关于你的梦", "We were parked in a Pontiac making out no internet", "我们在一辆庞蒂克车里亲热 没有网络", "Ten things I hate about you honestly nothing", "那部名为我讨厌你的十件事的电影很火 说实话 我对你很满意", "We talk all of the time and I love it", "我们一直聊天 我喜欢这种感觉", "So what are you doing tonight", "所以今晚你要做什么", "If you wanna come over watch Friends and then get high", "如果你想来一起看老友记 找点乐子", "Use my phone as a coaster we'll travel back in time", "把我的手机当作时光机 我们穿越回过去", "Lights on the ceiling we're more than a feeling", "天花板上绚烂的灯光 让我们的心中生出更多的情愫", "If you wanna come over act like it's 1999-9-9-9", "如果你想过来 假装现在是1999年", "One sec'", "等一下", "Do you mind if I'm nostalgic", "你介意我怀旧吗", "Let's go back before 2000", "让我们回到2000年之前", "Back before our love was so distracted", "回到我们的爱情还没有这么让人心烦意乱之前", "I wish that Y2K had happened we would stay forever classic", "我希望Y2K事件已经发生 我们能永远留在过去", "You and I would both be trapped in in 1999", "我们都被困在1999年", "We talk all of the time and I love it", "我们一直聊天 我喜欢这种感觉", "So what are you doing tonight", "所以今晚你要做什么", "If you wanna come over watch Friends and then get high", "如果你想来一起看老友记 找点乐子", "Use my phone as a coaster we'll travel back in time", "把我的手机当作时光机 我们穿越回过去", "Lights on the ceiling we're more than a feeling", "天花板上绚烂的灯光 让我们的心中生出更多的情愫", "If you wanna come over act like it's 1999", "如果你想过来 假装现在是1999年", "If you wanna come over act like it's 1999", "如果你想过来 假装现在是1999年"],
+		lyricTimes: [0.0, 0.0, 0.0, 2.0, 2.0, 5.0, 5.0, 7.0, 7.0, 10.0, 10.0, 13.0, 13.0, 20.0, 20.0, 25.0, 25.0, 29.0, 29.0, 34.0, 34.0, 42.0, 42.0, 44.0, 44.0, 46.0, 46.0, 51.0, 51.0, 56.0, 56.0, 61.0, 61.0, 66.0, 66.0, 71.0, 71.0, 76.0, 76.0, 83.0, 83.0, 83.0, 83.0, 86.0, 86.0, 88.0, 88.0, 93.0, 93.0, 98.0, 98.0, 108.0, 108.0, 112.0, 112.0, 118.0, 118.0, 123.0, 123.0, 127.0, 127.0, 132.0, 132.0, 138.0, 138.0, 143.0]
+	},
+	{
+		title: "Landslide",
+		artist: "Oh Wonder",
+		cover: "/static/images/cover-deep-sea.jpg",
+		fallbackImage: "/static/images/fallback-mint.svg",
+		audioUrl: "/static/audio/landslide.aac",
+		duration: 208,
+		moodId: "mint",
+		lyrics: ["I know it hurts sometimes but", "我知道有时那令人心痛", "You'll get over it", "但你会克服的", "You'll find another life to live", "你会找到另一个生活目标", "I know you'll get over it", "我知道你会渡过难关的", "I know you're sad and tired", "我知道你难受又疲累", "You've got nothing left to give", "你已经什么都没有了", "But you'll find another life to live", "但是你会找到另一条出路", "I know you'll get over it", "我知道你会克服困难的", "So when you're caught in a landslide", "所以当你被困境压制", "I'll be there for you", "我会与你一起奋斗", "I'll be there for you", "我会一直在那里陪你", "And in the rain  give you sunshine", "若是下雨了 我会给你和煦的阳光", "I'll be there for you", "我会与你一起奋斗", "I'll be there for you", "我会一直在那里陪你", "And every time that you're lonely", "每当你感到孤单", "Every time that you're feeling low", "每当你情绪低落", "You should know", "你应当知道", "I'll be there for you  I'll be there for you", "我是站在你那边的 我会一直陪你", "I'll be there for you  you know", "你要知道 我会一直挺你", "I know your hope is heavy but", "我知道你的梦想很沉重", "You'll get over it", "但是你会达成的", "You'll find another life to live", "你会找到另一个出路", "I know you'll get over it", "我知道你会渡过难关的", "And I know you feel like everything", "我知道你觉得所有的付出", "Is falling to the wind", "都付诸流水", "But don't you let the thunder in", "但是不要轻易放弃 不要让别人来破坏", "'Cause I know you'll get over it", "因为我知道你会克服一切的", "So when you're caught in a landslide", "所以当你被困境压制", "I'll be there for you  I'll be there for you", "我会与你一起奋斗 我会一直在那里陪你", "And in the rain  give you sunshine", "若是下雨了 我会给你和煦的阳光", "I'll be there for you  I'll be there for you", "我会与你一起奋斗 我会一直在那里陪你", "And every time that you're lonely", "每当你感到孤单", "Every time that you're feeling low", "每当你情绪低落", "You should know", "你应当知道", "I'll be there for you", "我是站在你那边的", "I'll be there for you", "我会一直陪你", "I'll be there for you", "我会一直挺你", "You know", "你知道的", "You fell down by the wayside", "你跌坐在路旁", "Love locked in an overflow", "热情被冲刷殆尽", "And you threw stones at the starlight", "你在星光下丢着石子", "'Cause I stood on the sidelines telling you", "而我会站在你身旁告诉你", "That I get that you're lonely", "我知道你感到寂寞", "And I see that you feel alone", "我了解你的无助", "But I heard in a heartbeat", "但是我听见彼此的心跳", "I'll be there for you you know", "你要知道 我是站在你这里的", "So when you're caught in a landslide", "所以当你被困境压制", "I'll be there for you", "我会与你一起奋斗", "I'll be there for you", "我会一直在那里陪你", "And in the rain  give you sunshine", "若是下雨了 我会给你和煦的阳光", "I'll be there for you", "我会与你一起奋斗", "I'll be there for you", "我会一直在那里陪你", "And every time that you're lonely", "每当你感到孤单", "Every time that you're feeling low", "每当你情绪低落", "You should know", "你应当知道", "I'll be there for you  I'll be there for you", "我是站在你那边的 我会一直陪你", "I'll be there for you  you know", "你要知道 我会一直挺你", "I'll be there for you", "我会一直一直陪你", "I'll be there for you", "我会一直一直陪你", "I'll be there for you", "我会和你一起克服困境", "You know", "你要知道", "I'll be there for you", "我会一直一直陪你", "I'll be there for you", "我会一直一直陪你", "I'll be there for you  you know", "你要知道 我会永远挺你", "I'll be there for you", "我是站在你那边的", "I'll be there for you", "我会一直陪你", "I'll be there for you  you know", "你要知道 我会一直挺你", "And every time that you're lonely", "每当你感到孤单", "Every time that you're feeling low", "每当你情绪低落", "You should know", "你应当知道", "I'll be there for you", "我是站在你那边的", "I'll be there for you", "我会一直陪你", "I'll be there for you you know", "你要知道 我会一直挺你"],
+		lyricTimes: [14.0, 17.0, 17.0, 20.0, 20.0, 22.0, 22.0, 26.0, 26.0, 28.0, 28.0, 31.0, 31.0, 34.0, 34.0, 37.0, 37.0, 40.0, 40.0, 42.0, 42.0, 43.0, 43.0, 46.0, 46.0, 48.0, 48.0, 49.0, 49.0, 52.0, 52.0, 54.0, 54.0, 55.0, 55.0, 58.0, 58.0, 74.0, 74.0, 78.0, 78.0, 80.0, 80.0, 83.0, 83.0, 86.0, 86.0, 89.0, 89.0, 92.0, 92.0, 94.0, 94.0, 98.0, 98.0, 100.0, 100.0, 103.0, 103.0, 107.0, 107.0, 109.0, 109.0, 112.0, 112.0, 115.0, 115.0, 115.0, 115.0, 117.0, 117.0, 118.0, 118.0, 120.0, 120.0, 122.0, 122.0, 125.0, 125.0, 128.0, 128.0, 131.0, 131.0, 134.0, 134.0, 138.0, 138.0, 141.0, 141.0, 143.0, 143.0, 146.0, 146.0, 149.0, 149.0, 150.0, 150.0, 151.0, 151.0, 154.0, 154.0, 156.0, 156.0, 157.0, 157.0, 160.0, 160.0, 162.0, 162.0, 163.0, 163.0, 166.0, 166.0, 169.0, 169.0, 171.0, 171.0, 172.0, 172.0, 173.0, 173.0, 175.0, 175.0, 177.0, 177.0, 178.0, 178.0, 181.0, 181.0, 183.0, 183.0, 184.0, 184.0, 187.0, 187.0, 190.0, 190.0, 192.0, 192.0, 193.0, 193.0, 194.0, 194.0, 196.0, 196.0, 201.0]
+	},
+	{
+		title: "恋人",
+		artist: "李荣浩",
+		cover: "/static/images/cover-sunset-road.jpg",
+		fallbackImage: "/static/images/fallback-sunset.svg",
+		audioUrl: "/static/audio/lianren.mp3",
+		duration: 276,
+		moodId: "strawberry",
+		lyrics: ["词 Lyricist：刘嘉星 Jiaxing Liu", "编曲 Arrangement：李荣浩 Ronghao Li", "制作人 Producer：李荣浩 Ronghao Li", "吉他 Guitars：李荣浩 Ronghao Li", "弦乐 String：国际首席爱乐乐团 International Master Philharmonic Orchestra", "录音师 Recording Engineer：李荣浩 Ronghao Li", "混音师 Mixing Engineer：李荣浩 Ronghao Li", "音乐制作助理 Production Assistant：青格乐 Chingel", "母带后期制作人Mastering Producer：李荣浩 Ronghao Li", "母带后期处理工程师 Mastering Engineer：周天澈 TC Z.", "爱像是一场小雨", "淅沥沥淅沥沥", "滴入我回忆", "爱又像一场旅行", "走停停走停停", "忽然遇见你", "停下了足迹", "是否还是不太喜欢吃香菜", "到现在都没改", "那双原来最喜欢的匡威鞋带", "现在却解不开", "那张磁带一再一再", "它又再一次的卡带", "却还会再一遍一遍", "一遍又一遍听下来", "昨天的爱 已回不来", "却依然在心里徘徊", "却依然在心底徘徊", "爱又像一场旅行", "走停停走停停", "忽然遇见你", "停下了足迹", "是否还是不太喜欢吃香菜", "到现在都没改", "那双原来最喜欢的匡威鞋带", "现在却解不开", "那张磁带一再一再", "它又再一次的卡带", "却还会再一遍一遍", "一遍又一遍听下来", "昨天的爱 已回不来", "却依然在心里徘徊", "却依然在心底徘徊", "凶手和恋人都喜欢事后回现场", "看一看自己从前到底有多疯狂", "回忆里充满着罗曼蒂克的幻想", "那张磁带里藏着过往", "播放了就会回到现场", "再一再它又再一次的卡带", "却还会再一遍一遍", "一遍又一遍听下来", "昨天的爱 已回不来", "却依然在心里徘徊", "却依然在心底徘徊"],
+		lyricTimes: [3.0, 7.0, 9.0, 11.0, 13.0, 16.0, 18.0, 19.0, 23.0, 23.0, 25.0, 31.0, 33.0, 39.0, 44.0, 46.0, 50.0, 54.0, 58.0, 61.0, 65.0, 67.0, 70.0, 74.0, 77.0, 81.0, 87.0, 91.0, 121.0, 127.0, 129.0, 132.0, 136.0, 140.0, 143.0, 147.0, 149.0, 153.0, 156.0, 160.0, 163.0, 170.0, 173.0, 179.0, 186.0, 193.0, 199.0, 202.0, 206.0, 211.0, 214.0, 218.0, 225.0, 228.0]
+	},
+	{
+		title: "Mystery of Love",
+		artist: "Luke Pickman",
+		cover: "/static/images/cover-rainforest.jpg",
+		fallbackImage: "/static/images/fallback-mint.svg",
+		audioUrl: "/static/audio/mystery-of-love.aac",
+		duration: 214,
+		moodId: "mint",
+		lyrics: ["纯音乐，请欣赏"],
+		lyricTimes: []
+	},
+	{
+		title: "Summer (Sample this)",
+		artist: "Pam_dinosaur",
+		cover: "/static/images/cover-sea-breeze.jpg",
+		fallbackImage: "/static/images/fallback-sea.svg",
+		audioUrl: "/static/audio/summer-sample.mp3",
+		duration: 145,
+		moodId: "sea-salt",
+		lyrics: ["纯音乐，请欣赏"],
+		lyricTimes: []
 	}
 ]
 
+function isPlayableUserSongPath(path : string) : boolean {
+	return !path.startsWith('content://')
+}
+
+function loadUserSongsTyped() : Song[] {
+	const raw = loadStr(K.USER_SONGS, '')
+	if (raw == '') return [] as Song[]
+	try {
+		const arr = JSON.parseArray<Song>(raw)
+		if (arr == null) return [] as Song[]
+		const filtered = arr!.filter((song : Song) : boolean => isPlayableUserSongPath(song.audioUrl))
+		if (filtered.length != arr!.length) saveJson(K.USER_SONGS, filtered)
+		return filtered
+	} catch (e) {
+		return [] as Song[]
+	}
+}
+
+export const userSongs = ref<Song[]> (loadUserSongsTyped())
+
+function rebuildPlaylist() : Song[] {
+	const list : Song[] = [] as Song[]
+	basePlaylist.forEach((song : Song) => { list.push(song) })
+	userSongs.value.forEach((song : Song) => { list.push(song) })
+	return list
+}
+
+export const playlist = ref<Song[]> (rebuildPlaylist())
+
+function saveUserSongs() {
+	saveJson(K.USER_SONGS, userSongs.value)
+	playlist.value = rebuildPlaylist()
+}
+
+function normalizeUserSongTitle(name : string) : string {
+	let title = name.trim()
+	const dot = title.lastIndexOf('.')
+	if (dot > 0) title = title.substring(0, dot)
+	if (title == '') title = '我的音乐'
+	if (title.length > 40) title = title.substring(0, 40)
+	return title
+}
+
 export const moods : Mood[] = [
-	{ id: 'sea-salt', color: '#AEEFF0', bg: '#E0F7FA', icon: '🌊' },
-	{ id: 'strawberry', color: '#FF8577', bg: '#FFD1BB', icon: '🍓' },
-	{ id: 'mint', color: '#B2F2BB', bg: '#E8F5E9', icon: '🍃' }
+	{ id: 'sea-salt', color: '#AEEFF0', bg: '#E0F7FA', iconName: 'wave' },
+	{ id: 'strawberry', color: '#FF8577', bg: '#FFD1BB', iconName: 'strawberry' },
+	{ id: 'mint', color: '#B2F2BB', bg: '#E8F5E9', iconName: 'mint' }
 ]
 
 export const categories : Category[] = [
 	{
-		id: 'beach-party',
-		name: '沙滩派对',
-		image: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=500&q=80',
+		id: 'convenience-3am',
+		name: '凌晨 3 点的便利店',
+		image: '/static/images/cover-night-store.jpg',
 		fallbackImage: '/static/images/fallback-sea.svg',
-		moodId: 'sea-salt',
-		desc: '把海风、浪花和冰镇汽水混在一起，适合从第一首歌就进入夏天。'
+		moodId: 'mint',
+		desc: '冰柜白光、空调冷气和一杯还没化开的饮料，适合把夜色听轻。',
+		narrative: '城市睡着以后，只有冰柜和耳机还亮着。',
+		suggestedHour: '03:00',
+		songIndices: [4, 6, 3, 7]
 	},
 	{
-		id: 'rainforest-walk',
-		name: '雨林漫步',
-		image: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=500&q=80',
+		id: 'july-last-rain',
+		name: '七月最后一场雷雨',
+		image: '/static/images/cover-blue-drift.jpg',
 		fallbackImage: '/static/images/fallback-mint.svg',
 		moodId: 'mint',
-		desc: '更轻、更绿、更安静的节奏，像在树影里慢慢降温。'
+		desc: '雨声贴着窗沿落下，热气被慢慢洗掉，适合独处也适合发呆。',
+		narrative: '雷声过去后，空气里只剩下薄荷色的潮湿。',
+		suggestedHour: '17:00',
+		songIndices: [4, 6, 2, 3]
 	},
 	{
-		id: 'sunset-road',
-		name: '日落大道',
-		image: 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?auto=format&fit=crop&w=500&q=80',
+		id: 'k3-last-train',
+		name: '海岸线最后一班 K3 列车',
+		image: '/static/images/cover-coral-dusk.jpg',
 		fallbackImage: '/static/images/fallback-sunset.svg',
 		moodId: 'strawberry',
-		desc: '适合黄昏、晚霞和一点点心动，把今天的余温留在耳机里。'
+		desc: '车窗外倒退的橘色海岸线，把今天的余温拉成很长一段。',
+		narrative: '末班车沿着海岸开走，晚霞还不肯散场。',
+		suggestedHour: '19:00',
+		songIndices: [5, 0, 1, 2]
+	},
+	{
+		id: 'rainforest-morning',
+		name: '雨林清晨的瀑布池',
+		image: '/static/images/cover-rainforest.jpg',
+		fallbackImage: '/static/images/fallback-mint.svg',
+		moodId: 'mint',
+		desc: '清晨的水汽还很新鲜，叶片上的光把节奏洗得更透明。',
+		narrative: '第一束光落进瀑布池，绿色声音一点点醒来。',
+		suggestedHour: '07:00',
+		songIndices: [6, 4, 7, 3]
+	},
+	{
+		id: 'midsummer-pool',
+		name: '仲夏夜泳池',
+		image: '/static/images/cover-pool-star.jpg',
+		fallbackImage: '/static/images/fallback-sea.svg',
+		moodId: 'sea-salt',
+		desc: '灯串、泳池和迟到的笑声一起晃动，是适合把音量开大的夏夜。',
+		narrative: '水面倒映星光，派对从第一声鼓点开始。',
+		suggestedHour: '22:30',
+		songIndices: [2, 3, 7, 0, 1]
 	}
 ]
 
 function makeDefaultBottles() : Bottle[] {
 	return [
-		{ id: 1, message: '在长滩听了一夜的潮，希望你也能听见。', songTitle: '夏日清风', createdAt: 1716811200000, replies: [] as string[] },
-		{ id: 2, message: '柠檬汽水配《夏日清风》，这就是答案。', songTitle: '夏日清风', createdAt: 1716897600000, replies: [] as string[] },
-		{ id: 3, message: '想念去年那个一起追日落的人。', songTitle: '柠檬汽水', createdAt: 1716984000000, replies: [] as string[] },
-		{ id: 4, message: '每首歌都是一片新的海，跳进去吧。', songTitle: '蔚蓝海岸', createdAt: 1717070400000, replies: [] as string[] }
+		{ id: 1, message: '在长滩听了一夜的潮，希望你也能听见。', songTitle: 'Beach', createdAt: 1716811200000, replies: [] as string[] },
+		{ id: 2, message: '冰柜前突然想通一件小事，夏天还很长。', songTitle: 'Chillin with a Drink', createdAt: 1716897600000, replies: ['我也喜欢凌晨的便利店'] as string[] },
+		{ id: 3, message: '想念去年那个一起追日落的人。', songTitle: 'Sunglasses', createdAt: 1716984000000, replies: [] as string[] },
+		{ id: 4, message: '每首歌都是一片新的海，跳进去吧。', songTitle: 'Hug Convoy', createdAt: 1717070400000, replies: [] as string[] },
+		{ id: 5, message: '雨停的时候，窗外的树像刚醒过来。', songTitle: 'Standing', createdAt: 1717156800000, replies: [] as string[] },
+		{ id: 6, message: '今晚的泳池灯很亮，适合假装烦恼都浮走了。', songTitle: 'Dancing Fool', createdAt: 1717243200000, replies: ['这句好像真的有用'] as string[] },
+		{ id: 7, message: '列车靠海那段，我把音量调到了最大。', songTitle: 'Hug Convoy', createdAt: 1717329600000, replies: [] as string[] },
+		{ id: 8, message: '如果你也在加班，愿这一拍替你吹点风。', songTitle: 'Work', createdAt: 1717416000000, replies: [] as string[] },
+		{ id: 9, message: '墨镜后面可以偷偷笑，没人会发现。', songTitle: 'Sunglasses', createdAt: 1717502400000, replies: [] as string[] },
+		{ id: 10, message: '清晨的第一杯水，听起来像薄荷味。', songTitle: 'Traveling in Your Mind', createdAt: 1717588800000, replies: [] as string[] },
+		{ id: 11, message: '把今天过得热烈一点，明天再温柔。', songTitle: 'Summer Pride', createdAt: 1717675200000, replies: [] as string[] },
+		{ id: 12, message: '我在雨里等红灯，突然觉得城市很会唱歌。', songTitle: 'Coexistenz', createdAt: 1717761600000, replies: ['这瓶我收下了'] as string[] },
+		{ id: 13, message: '风扇转得慢，灵感却刚好来了。', songTitle: 'Work', createdAt: 1717848000000, replies: [] as string[] },
+		{ id: 14, message: '海边的夜晚不用说话，浪会替我们说。', songTitle: 'Beach', createdAt: 1717934400000, replies: [] as string[] },
+		{ id: 15, message: '跳得不整齐也没关系，快乐本来就会抢拍。', songTitle: 'Dancing Fool', createdAt: 1718020800000, replies: [] as string[] }
 	]
 }
 
-export const bottles = ref<Bottle[]> (loadJson<Bottle[]>(K.BOTTLES, makeDefaultBottles()))
+/**
+ * Bottle 必须用 JSON.parseArray<Bottle> 真类型化，
+ * 运行时仍是 UTSReactiveJSONObject，后续 map((b : Bottle)) 触发真转型时崩溃。
+ * 用 uni-app x 的 JSON.parseArray<Bottle> 做真正的类型化解析。
+ */
+function loadBottlesTyped() : Bottle[] {
+	const raw = loadStr(K.BOTTLES, '')
+	if (raw == '') return makeDefaultBottles()
+	try {
+		const arr = JSON.parseArray<Bottle>(raw)
+		if (arr == null || arr.length == 0) return makeDefaultBottles()
+		return arr
+	} catch (e) {
+		return makeDefaultBottles()
+	}
+}
+
+export const bottles = ref<Bottle[]> (loadBottlesTyped())
 
 function normalizeBottle(b : Bottle) : Bottle {
 	const replies = b.replies == null ? [] as string[] : b.replies
@@ -189,31 +371,43 @@ function defaultMoodByTime() : string {
 export type PlayerState = {
 	isPlaying : boolean,
 	progress : number,         // 0-100
+	currentTime : number,      // 秒，当前播放位置（用于歌词时间轴同步）
 	duration : number,         // 秒
 	volume : number,           // 0-1
 	moodId : string,
 	currentSongIndex : number,
 	activePageIndex : number,
 	activeBottle : Bottle | null,
+	autoPlayNext : boolean,
+	playMode : PlayMode,
 	audioLoading : boolean,
 	audioErrorMessage : string
 }
 
-export const state = reactive<PlayerState>({
+const initialPlayerState : PlayerState = {
 	isPlaying: false,
 	progress: 0,                // 启动不恢复进度，跟着音频实际位置走
+	currentTime: 0,
 	duration: 0,
 	volume: loadNum(K.VOLUME, 0.7),
 	moodId: loadStr(K.MOOD, defaultMoodByTime()),
 	currentSongIndex: loadInt(K.SONG_INDEX, 0),
 	activePageIndex: 0,
 	activeBottle: null,
+	autoPlayNext: loadStr(K.AUTO_NEXT, '1') == '1',
+	playMode: normalizePlayMode(loadStr(K.PLAY_MODE, 'sequence')),
 	audioLoading: false,
 	audioErrorMessage: ''
-} as PlayerState)
+}
+
+export const state = reactive<PlayerState>(initialPlayerState)
+if (state.currentSongIndex < 0 || state.currentSongIndex >= playlist.value.length) {
+	state.currentSongIndex = 0
+	saveNum(K.SONG_INDEX, 0)
+}
 
 /** 最近播放历史（最多 30 条 song.title） */
-export const recents = ref<string[]> (loadJson<string[]>(K.RECENTS, [] as string[]))
+export const recents = ref<string[]> (loadArray<string>(K.RECENTS, [] as string[]))
 
 function pushRecent(title : string) {
 	const arr = recents.value.filter((t : string) : boolean => t != title)
@@ -231,28 +425,116 @@ const fallbackSong : Song = {
 	fallbackImage: '/static/images/fallback-sea.svg',
 	audioUrl: '',
 	moodId: 'sea-salt',
-	lyrics: ['静待新的旋律']
+	lyrics: ['等一首歌漂过来', '夏天还很长', '夏夜会有答案'],
+	lyricTimes: [] as number[],
+	duration: 0
 }
 
 export const currentSong = computed<Song> (() : Song => {
 	return safeGetSong(state.currentSongIndex)
 })
 
+function hasHanText(text : string) : boolean {
+	for (let i = 0; i < text.length; i++) {
+		const code = text.charCodeAt(i)
+		if (code == null) continue
+		if (code >= 0x4e00 && code <= 0x9fff) return true
+	}
+	return false
+}
+
+function isBilingualPairStart(lines : string[], start : number, count : number) : boolean {
+	if (start < 0 || start + 1 >= count) return false
+	return !hasHanText(lines[start]) && hasHanText(lines[start + 1])
+}
+
+function lyricGroupStartForIndex(lines : string[], index : number, count : number) : number {
+	if (index > 0 && hasHanText(lines[index]) && !hasHanText(lines[index - 1])) return index - 1
+	return index
+}
+
+function nextLyricGroupStart(lines : string[], start : number, count : number) : number {
+	return start + (isBilingualPairStart(lines, start, count) ? 2 : 1)
+}
+
+function timedLyricIndex(lines : string[], times : number[], total : number, currentTime : number, duration : number) : number {
+	const count = Math.min(times.length, total)
+	if (count <= 0) return 0
+	let idx = 0
+	let i = 0
+	while (i < count) {
+		if (times[i] <= currentTime) idx = i
+		else break
+		i = nextLyricGroupStart(lines, i, count)
+	}
+	return lyricGroupStartForIndex(lines, idx, count)
+}
+
+function lyricSeekTime(song : Song, index : number, duration : number) : number {
+	const times = song.lyricTimes
+	const count = Math.min(times.length, song.lyrics.length)
+	if (index < 0 || index >= count) return -1
+	const groupStart = lyricGroupStartForIndex(song.lyrics, index, count)
+	return times[groupStart]
+}
+
 export const currentLyricIndex = computed<number> (() : number => {
-	const total = currentSong.value.lyrics.length
+	const song = currentSong.value
+	const total = song.lyrics.length
 	if (total <= 0) return 0
-	const idx = Math.floor((state.progress / 100) * total)
-	return Math.min(idx, total - 1)
+	const times = song.lyricTimes
+	// 有时间轴：按当前播放秒数定位（真正的音词同步）
+	if (times.length > 0) {
+		const d = state.duration > 0 ? state.duration : song.duration
+		return timedLyricIndex(song.lyrics, times, total, state.currentTime, d)
+	}
+	// 无时间轴（纯音乐/上传歌）：退回按进度线性平摊
+	const li = Math.floor((state.progress / 100) * total)
+	return Math.min(li, total - 1)
 })
 
 function safeGetSong(index : number) : Song {
-	if (playlist.length == 0) return fallbackSong
-	if (index < 0 || index >= playlist.length) return playlist[0]
-	return playlist[index]
+	if (playlist.value.length == 0) return fallbackSong
+	if (index < 0 || index >= playlist.value.length) return playlist.value[0]
+	return playlist.value[index]
 }
 
 function isValidSongIndex(index : number) : boolean {
-	return index >= 0 && index < playlist.length
+	return index >= 0 && index < playlist.value.length
+}
+
+function normalizePlayMode(mode : string) : PlayMode {
+	if (mode == 'repeat-one') return 'repeat-one'
+	if (mode == 'shuffle') return 'shuffle'
+	return 'sequence'
+}
+
+function randomNextSongIndex() : number {
+	const len = playlist.value.length
+	if (len <= 1) return 0
+	let idx = Math.floor(Math.random() * len)
+	if (idx == state.currentSongIndex) idx = (idx + 1) % len
+	return idx
+}
+
+function nextSongIndexForAutoAdvance() : number {
+	if (playlist.value.length == 0) return 0
+	if (state.playMode == 'repeat-one') return state.currentSongIndex
+	if (state.playMode == 'shuffle') return randomNextSongIndex()
+	return (state.currentSongIndex + 1) % playlist.value.length
+}
+
+function nextSongIndexForManualAdvance() : number {
+	if (playlist.value.length == 0) return 0
+	if (state.playMode == 'shuffle') return randomNextSongIndex()
+	return (state.currentSongIndex + 1) % playlist.value.length
+}
+
+function findSongIndexByUrl(url : string) : number {
+	for (let i = 0; i < playlist.value.length; i++) {
+		if (playlist.value[i].audioUrl == url) return i
+	}
+	return -1
 }
 
 /* ───── 真实数据流：播放统计 ─────
@@ -269,22 +551,63 @@ export type MoodCount = {
 export type PlayerStats = {
 	totalPlaySeconds : number,
 	moodCounts : MoodCount[],
-	uniqueSongs : number[]
+	uniqueSongs : number[],
+	hourlyCounts : number[],
+	songPlayCount : number[]
 }
 
 function makeDefaultStats() : PlayerStats {
-	return {
+	const hourly : number[] = [] as number[]
+	for (let i = 0; i < 24; i++) hourly.push(0)
+	const songCounts : number[] = [] as number[]
+	for (let i = 0; i < playlist.value.length; i++) songCounts.push(0)
+	const stats : PlayerStats = {
 		totalPlaySeconds: 0,
 		moodCounts: [
 			{ id: 'sea-salt', seconds: 0 },
 			{ id: 'strawberry', seconds: 0 },
 			{ id: 'mint', seconds: 0 }
 		],
-		uniqueSongs: [] as number[]
-	} as PlayerStats
+		uniqueSongs: [] as number[],
+		hourlyCounts: hourly,
+		songPlayCount: songCounts
+	}
+	return stats
 }
 
-export const playerStats = ref<PlayerStats> (loadJson<PlayerStats>(K.STATS, makeDefaultStats()))
+function normalizeStats(stats : PlayerStats) : PlayerStats {
+	const hourly : number[] = [] as number[]
+	for (let i = 0; i < 24; i++) {
+		if (stats.hourlyCounts != null && i < stats.hourlyCounts.length) hourly.push(stats.hourlyCounts[i])
+		else hourly.push(0)
+	}
+	const songCounts : number[] = [] as number[]
+	for (let i = 0; i < playlist.value.length; i++) {
+		if (stats.songPlayCount != null && i < stats.songPlayCount.length) songCounts.push(stats.songPlayCount[i])
+		else songCounts.push(0)
+	}
+	return {
+		totalPlaySeconds: stats.totalPlaySeconds,
+		moodCounts: stats.moodCounts,
+		uniqueSongs: stats.uniqueSongs,
+		hourlyCounts: hourly,
+		songPlayCount: songCounts
+	}
+}
+
+/** 同 Bottle：必须用 JSON.parse<PlayerStats> 真类型化，否则 moodCounts.find 会崩 */
+function loadPlayerStatsTyped() : PlayerStats {
+	const raw = loadStr(K.STATS, '')
+	if (raw == '') return makeDefaultStats()
+	try {
+		const obj = JSON.parse<PlayerStats>(raw)
+		return obj == null ? makeDefaultStats() : normalizeStats(obj!)
+	} catch (e) {
+		return makeDefaultStats()
+	}
+}
+
+export const playerStats = ref<PlayerStats> (loadPlayerStatsTyped())
 
 let statsDirty = false
 let lastStatsSaveAt = 0
@@ -299,48 +622,103 @@ function markStatsDirty() {
 }
 
 /** 累加 N 秒到 stats，按当前 mood 分配 */
+/* 升级事件：每次升级 +1，index 监听后弹庆祝。
+ * 只在累计过程中触发，storage 加载历史等级不触发。 */
+export const levelUpEvent = ref(0)
+export const levelUpTo = ref(1)
+
+const levelThresholds : number[] = [0, 1800, 5400, 12600, 19800, 23400, 27000, 30600, 34200]
+
+function levelFromSeconds(sec : number) : number {
+	for (let i = levelThresholds.length - 1; i >= 0; i--) {
+		if (sec >= levelThresholds[i]) return i + 1
+	}
+	return 1
+}
+
+function levelBaseSeconds(lv : number) : number {
+	if (lv <= 1) return 0
+	const idx = lv - 1
+	if (idx < levelThresholds.length) return levelThresholds[idx]
+	return levelThresholds[levelThresholds.length - 1] + (idx - levelThresholds.length + 1) * 3600
+}
+
 function accumulatePlay(seconds : number) {
 	if (seconds <= 0) return
 	const s = playerStats.value
+	const before = s.totalPlaySeconds
 	s.totalPlaySeconds += seconds
+	const hour = new Date().getHours()
+	if (hour >= 0 && hour < s.hourlyCounts.length) s.hourlyCounts[hour] += seconds
 	const m = s.moodCounts.find((mc : MoodCount) : boolean => mc.id == state.moodId)
 	if (m != null) m!.seconds += seconds
 	// 触发响应式更新
 	playerStats.value = s
 	markStatsDirty()
+	// 检测是否跨过等级临界（600 秒整数倍）
+	const lvBefore = levelFromSeconds(before)
+	const lvAfter = levelFromSeconds(s.totalPlaySeconds)
+	if (lvAfter > lvBefore) {
+		levelUpTo.value = lvAfter
+		levelUpEvent.value = levelUpEvent.value + 1
+	}
 }
 
 function markSongListened(idx : number) {
 	const s = playerStats.value
+	if (idx >= 0 && idx < s.songPlayCount.length) {
+		s.songPlayCount[idx] += 1
+	}
 	if (!s.uniqueSongs.includes(idx)) {
 		s.uniqueSongs.push(idx)
-		playerStats.value = s
-		markStatsDirty()
 	}
+	playerStats.value = s
+	markStatsDirty()
 }
 
 /* ───── 派生 computed：等级 / 经验 / 音乐画像 ───── */
 
-/** 每 10 分钟（600 秒）一级，从 1 开始 */
 export const playerLevel = computed<number> (() : number => {
-	return Math.floor(playerStats.value.totalPlaySeconds / 600) + 1
+	return levelFromSeconds(playerStats.value.totalPlaySeconds)
 })
 
 /** 当前等级的经验进度，0-100 */
 export const levelExpPercent = computed<number> (() : number => {
 	const t = playerStats.value.totalPlaySeconds
-	return (t % 600) / 600 * 100
+	const lv = levelFromSeconds(t)
+	const base = levelBaseSeconds(lv)
+	const next = levelBaseSeconds(lv + 1)
+	return ((t - base) / (next - base)) * 100
 })
 
-/** 等级头衔 */
-export const levelTitle = computed<string> (() : string => {
-	const lv = playerLevel.value
-	if (lv < 3) return '初探深海'
-	if (lv < 6) return '海盐巡游者'
-	if (lv < 12) return '日落追逐者'
-	if (lv < 20) return '深夜潜水员'
-	return '海洋之心'
-})
+function titleCore(lv : number, moodId : string) : string {
+	if (moodId == 'strawberry') {
+		if (lv <= 1) return '晚霞试音员'
+		if (lv == 2) return '汽水心跳者'
+		if (lv == 3) return '黄昏巡游者'
+		if (lv < 6) return '珊瑚派对客'
+		if (lv < 9) return '日落收藏家'
+		return '热浪领航员'
+	}
+	if (moodId == 'mint') {
+		if (lv <= 1) return '薄荷醒梦人'
+		if (lv == 2) return '雨林漫步者'
+		if (lv == 3) return '清凉调频师'
+		if (lv < 6) return '夜风潜行者'
+		if (lv < 9) return '绿荫守望者'
+		return '瀑布回声师'
+	}
+	if (lv <= 1) return '浅滩初听者'
+	if (lv == 2) return '踏浪新人'
+	if (lv == 3) return '海盐巡游者'
+	if (lv < 6) return '潮汐旅人'
+	if (lv < 9) return '远岸航线家'
+	return '海面领航员'
+}
+
+export function titleForLevel(lv : number, moodId : string = 'sea-salt') : string {
+	return moodLabel(moodId) + ' · LV' + lv + ' · ' + titleCore(lv, moodId)
+}
 
 /** 按 moodCounts 实时算音乐画像 */
 export const vibeDnasComputed = computed<DnaItem[]> (() : DnaItem[] => {
@@ -360,6 +738,50 @@ export const vibeDnasComputed = computed<DnaItem[]> (() : DnaItem[] => {
 export const totalPlayMinutes = computed<number> (() : number => Math.floor(playerStats.value.totalPlaySeconds / 60))
 export const uniqueSongCount = computed<number> (() : number => playerStats.value.uniqueSongs.length)
 
+export const peakHour = computed<number> (() : number => {
+	const arr = playerStats.value.hourlyCounts
+	let best = 0
+	let bestSeconds = -1
+	for (let i = 0; i < arr.length; i++) {
+		if (arr[i] > bestSeconds) {
+			bestSeconds = arr[i]
+			best = i
+		}
+	}
+	return best
+})
+
+export const peakHourText = computed<string> (() : string => {
+	const h = peakHour.value
+	const end = (h + 2) % 24
+	const hs = h < 10 ? '0' + h : '' + h
+	const es = end < 10 ? '0' + end : '' + end
+	return hs + ':00-' + es + ':00'
+})
+
+export const topLoopSongs = computed<TopSongItem[]> (() : TopSongItem[] => {
+	const result : TopSongItem[] = [] as TopSongItem[]
+	const used : number[] = [] as number[]
+	for (let rank = 0; rank < 3; rank++) {
+		let bestIdx = -1
+		let bestCount = -1
+		for (let i = 0; i < playerStats.value.songPlayCount.length; i++) {
+			if (used.includes(i)) continue
+			const count = playerStats.value.songPlayCount[i]
+			if (count > bestCount) {
+				bestCount = count
+				bestIdx = i
+			}
+		}
+		if (bestIdx >= 0 && bestIdx < playlist.value.length && bestCount > 0) {
+			used.push(bestIdx)
+			const item : TopSongItem = { title: playlist.value[bestIdx].title, count: bestCount }
+			result.push(item)
+		}
+	}
+	return result
+})
+
 export const dominantMoodId = computed<string> (() : string => {
 	const arr = playerStats.value.moodCounts
 	let total = 0
@@ -376,6 +798,55 @@ export const dominantMoodId = computed<string> (() : string => {
 	return bestId == '' ? state.moodId : bestId
 })
 
+/** mood id → 中文标签，用于报告卡片 */
+export function moodLabel(id : string) : string {
+	if (id == 'strawberry') return '日落珊瑚'
+	if (id == 'mint') return '薄荷清凉'
+	return '海盐微风'
+}
+
+export const dominantMoodLabel = computed<string> (() : string => moodLabel(dominantMoodId.value))
+export const levelTitle = computed<string> (() : string => titleForLevel(playerLevel.value, dominantMoodId.value))
+
+function dayPart(hour : number) : string {
+	if (hour >= 5 && hour < 11) return 'morning'
+	if (hour >= 17 && hour < 21) return 'evening'
+	return 'night'
+}
+
+function makeSpiritAnimal(name : string, desc : string, color : string) : SpiritAnimal {
+	const animal : SpiritAnimal = {
+		name: name,
+		desc: desc,
+		color: color
+	}
+	return animal
+}
+
+export const spiritAnimal = computed<SpiritAnimal> (() : SpiritAnimal => {
+	const part = dayPart(peakHour.value)
+	const mood = dominantMoodId.value
+	if (mood == 'strawberry' && part == 'morning') return makeSpiritAnimal('晨光里的火烈鸟', '热烈来得很早，连清晨也带着一点粉色。', '#FF8577')
+	if (mood == 'strawberry' && part == 'evening') return makeSpiritAnimal('黄昏的火烈鸟', '你把心动留给晚霞，也把节拍留给热风。', '#FF6B6B')
+	if (mood == 'strawberry') return makeSpiritAnimal('霓虹边的狐', '夜色越深，你越擅长把孤独听成光。', '#FB7185')
+	if (mood == 'mint' && part == 'morning') return makeSpiritAnimal('瀑布池的鹿', '你喜欢清醒的绿意，脚步轻，耳朵也轻。', '#22C55E')
+	if (mood == 'mint' && part == 'evening') return makeSpiritAnimal('雨后窗边的猫', '你把降温后的城市，听成一小段柔软呼吸。', '#10B981')
+	if (mood == 'mint') return makeSpiritAnimal('雨林夜歌的萤', '越安静的夜里，你越会发出自己的光。', '#34D399')
+	if (part == 'morning') return makeSpiritAnimal('海面初醒的鸥', '你总能在第一阵风里，找到重新开始的理由。', '#38BDF8')
+	if (part == 'evening') return makeSpiritAnimal('落日航线的鲸', '你的夏天辽阔而慢，适合把余温一路带走。', '#60A5FA')
+	return makeSpiritAnimal('深夜潮汐的鲸', '你在浪声里整理世界，也在夜色里保持自由。', '#2563EB')
+})
+
+/** 报告一句话文案，按主导 mood + 时长生成 */
+export const reportTagline = computed<string> (() : string => {
+	const mins = totalPlayMinutes.value
+	if (mins <= 0) return '夏天才刚刚开始，先听一首歌吧。'
+	const id = dominantMoodId.value
+	if (id == 'strawberry') return '你的夏天是黄昏色的，温柔又漫长。'
+	if (id == 'mint') return '你的夏天泛着薄荷光，清凉又安静。'
+	return '你的夏天有海盐的味道，自由又辽阔。'
+})
+
 function hasListenedSong(index : number) : boolean {
 	return playerStats.value.uniqueSongs.includes(index)
 }
@@ -389,17 +860,17 @@ export const personalizedPlaylist = computed<Song[]> (() : Song[] => {
 	const moodId = dominantMoodId.value
 	const result : Song[] = []
 	const listened : Song[] = []
-	playlist.forEach((song : Song, idx : number) => {
+	playlist.value.forEach((song : Song, idx : number) => {
 		if (song.moodId != moodId) return
-		if (hasListenedSong(idx) && playlist.length > 3) {
+		if (hasListenedSong(idx) && playlist.value.length > 3) {
 			listened.push(song)
 		} else {
 			pushSongIfMissing(result, song)
 		}
 	})
-	playlist.forEach((song : Song, idx : number) => {
+	playlist.value.forEach((song : Song, idx : number) => {
 		if (song.moodId == moodId) return
-		if (hasListenedSong(idx) && playlist.length > 3) {
+		if (hasListenedSong(idx) && playlist.value.length > 3) {
 			listened.push(song)
 		} else {
 			pushSongIfMissing(result, song)
@@ -419,6 +890,11 @@ let audio : InnerAudioContext | null = null
 let audioInited = false
 let lastAudioTime = 0 // 用于累计有效播放时长（屏蔽 seek 跳跃）
 let audioErrorSkipCount = 0
+// 当前已加载到 audio 的曲目下标。-1 = 尚未加载任何曲目。
+// 用数值下标判断"是否换歌"，而非比较 audio.src 字符串——
+// 原生层 src getter 在部分 ROM 会返回规范化绝对路径，字符串比较会恒不等，
+// 导致暂停后再播放被误判为换歌而从头重载。
+let loadedSongIndex = -1
 
 function ensureAudio() {
 	if (audioInited) return
@@ -437,6 +913,7 @@ function ensureAudio() {
 	ctx.onTimeUpdate(() => {
 		const cur = ctx.currentTime
 		const dur = ctx.duration
+		state.currentTime = cur   // 驱动歌词时间轴同步
 		if (dur > 0) {
 			state.duration = dur
 			state.progress = (cur / dur) * 100
@@ -457,13 +934,30 @@ function ensureAudio() {
 	})
 	ctx.onPause(() => { state.isPlaying = false })
 	ctx.onStop(() => { state.isPlaying = false })
+	// 中途缓冲：网络卡顿时音频拉流，置 loading 让 vinyl 显示缓冲反馈
+	ctx.onWaiting(() => { state.audioLoading = true })
 
 	ctx.onEnded(() => {
-		state.progress = 0
-		nextSong()
+		state.audioLoading = false
+		if (state.playMode == 'repeat-one') {
+			state.progress = 0
+			state.currentTime = 0
+			playSongByResolvedIndex(state.currentSongIndex)
+		} else if (state.autoPlayNext) {
+			state.progress = 0
+			state.currentTime = 0
+			playSongByResolvedIndex(nextSongIndexForAutoAdvance())
+		} else {
+			state.progress = 100
+			if (state.duration > 0) state.currentTime = state.duration
+			state.isPlaying = false
+		}
 	})
 
-	ctx.onError(() => {
+	ctx.onError((err) => {
+		// 不显式标注参数类型，让 uts 从 onError 签名推断（类型名因版本而异，标注反而易编译失败）
+		// 打印原生层真实错误码 + 描述，定位播放失败原因
+		console.error('[audio] onError errCode=' + err.errCode + ' errMsg=' + err.errMsg + ' src=' + ctx.src)
 		handleAudioError()
 	})
 
@@ -475,14 +969,18 @@ function loadCurrentSong(autoplay : boolean) {
 	if (audio == null) return
 	const song = safeGetSong(state.currentSongIndex)
 	if (song.audioUrl == '') {
+		console.warn('[audio] loadCurrentSong: audioUrl 为空, idx=' + state.currentSongIndex)
 		state.isPlaying = false
 		state.audioLoading = false
 		state.audioErrorMessage = '当前没有可播放的音频'
 		uni.showToast({ title: state.audioErrorMessage, icon: 'none' })
 		return
 	}
+	console.log('[audio] loadCurrentSong idx=' + state.currentSongIndex + ' autoplay=' + autoplay + ' src=' + song.audioUrl)
 	audio!.src = song.audioUrl
+	loadedSongIndex = state.currentSongIndex
 	state.progress = 0
+	state.currentTime = 0
 	state.duration = 0
 	state.audioErrorMessage = ''
 	state.audioLoading = autoplay
@@ -499,7 +997,7 @@ function handleAudioError() {
 	state.isPlaying = false
 	state.audioLoading = false
 	state.audioErrorMessage = '当前音频加载失败'
-	if (playlist.length <= 1 || audioErrorSkipCount >= playlist.length - 1) {
+	if (playlist.value.length <= 1 || audioErrorSkipCount >= playlist.value.length - 1) {
 		audioErrorSkipCount = 0
 		uni.showToast({ title: '音频加载失败，请稍后再试', icon: 'none' })
 		return
@@ -512,17 +1010,13 @@ function handleAudioError() {
 export function togglePlay() {
 	ensureAudio()
 	if (audio == null) return
-	if (playlist.length == 0) {
+	if (playlist.value.length == 0) {
 		state.audioErrorMessage = '暂无可播放歌曲'
 		uni.showToast({ title: state.audioErrorMessage, icon: 'none' })
 		return
 	}
-	const src = audio!.src
-	if (src == '') {
-		loadCurrentSong(true)
-		return
-	}
-	if (src != currentSong.value.audioUrl) {
+	// 用已加载下标判断是否需要换歌：未加载过、或当前曲目下标变了，才重新 load
+	if (loadedSongIndex != state.currentSongIndex) {
 		loadCurrentSong(true)
 		return
 	}
@@ -555,45 +1049,216 @@ export function playSong(index : number) {
 	state.currentSongIndex = index
 	state.activePageIndex = 0
 	saveNum(K.SONG_INDEX, index)
-	pushRecent(playlist[index].title)
+	pushRecent(playlist.value[index].title)
 	loadCurrentSong(true)
+}
+
+function playSongByResolvedIndex(index : number) {
+	if (!isValidSongIndex(index)) {
+		state.isPlaying = false
+		state.audioLoading = false
+		state.audioErrorMessage = '暂无可播放歌曲'
+		return
+	}
+	audioErrorSkipCount = 0
+	state.currentSongIndex = index
+	saveNum(K.SONG_INDEX, state.currentSongIndex)
+	pushRecent(playlist.value[state.currentSongIndex].title)
+	loadCurrentSong(true)
+}
+
+function syncStatsSongSlots() {
+	const s = playerStats.value
+	while (s.songPlayCount.length < playlist.value.length) s.songPlayCount.push(0)
+	if (s.songPlayCount.length > playlist.value.length) s.songPlayCount.length = playlist.value.length
+	playerStats.value = s
+	markStatsDirty()
+}
+
+export function addUserSong(input : UserSongInput) : boolean {
+	const url = input.audioUrl.trim()
+	console.log('[upload] addUserSong url=' + url)
+	if (url == '') {
+		console.warn('[upload] addUserSong: url 为空')
+		uni.showToast({ title: '没有拿到音频文件', icon: 'none' })
+		return false
+	}
+	const title = normalizeUserSongTitle(input.title)
+	const exists = userSongs.value.find((song : Song) : boolean => song.audioUrl == url)
+	if (exists != null) {
+		console.log('[upload] addUserSong: 该 url 已存在，直接播放已有条目')
+		const existingIdx = findSongIndexByUrl(url)
+		if (existingIdx >= 0) playSong(existingIdx)
+		return true
+	}
+	const song : Song = {
+		title: title,
+		artist: '本地上传',
+		cover: '',
+		fallbackImage: '/static/images/fallback-sea.svg',
+		audioUrl: url,
+		moodId: state.moodId == '' ? 'sea-salt' : state.moodId,
+		lyrics: ['这是你上传的音乐', '让夏天按你的节奏来', '本地旋律正在播放'],
+		lyricTimes: [] as number[],
+		duration: 0
+	}
+	// 必须 push（追加到末尾）而非 unshift：songPlayCount / uniqueSongs 按 playlist
+	// 下标存储，syncStatsSongSlots 在末尾补 0。若 unshift，已有用户歌下标整体后移，
+	// 统计会张冠李戴。push 保证已有下标稳定。
+	const arr = userSongs.value.slice()
+	arr.push(song)
+	userSongs.value = arr
+	saveUserSongs()
+	syncStatsSongSlots()
+	const idx = findSongIndexByUrl(url)
+	console.log('[upload] addUserSong: 已加入 playlist, idx=' + idx + ' playlist.length=' + playlist.value.length)
+	if (idx >= 0) playSong(idx)
+	else console.warn('[upload] addUserSong: 加入后竟找不到下标，url=' + url)
+	uni.showToast({ title: '音乐已添加', icon: 'none' })
+	return true
+}
+
+/** 删除上传文件的物理文件（仅删我们复制进 USER_DATA_PATH 的；content:// 等外部 URI 跳过） */
+function deleteAudioFile(path : string) {
+	if (!path.startsWith('unifile://') && !path.startsWith('file://')) {
+		console.log('[upload] 非本地复制文件，跳过物理删除: ' + path)
+		return
+	}
+	try {
+		const fs = uni.getFileSystemManager()
+		fs.unlinkSync(path)
+		console.log('[upload] 已删除物理文件 ' + path)
+	} catch (e) {
+		console.warn('[upload] 删除物理文件失败 ' + path + ' err=' + e)
+	}
+}
+
+/** 删除一首上传歌曲：物理文件 + 元数据 + 统计索引重映射 + 当前播放下标修正 */
+export function removeUserSong(audioUrl : string) : boolean {
+	const ui = userSongs.value.findIndex((s : Song) : boolean => s.audioUrl == audioUrl)
+	if (ui < 0) return false
+	// 用户歌在 playlist 中的下标 = base 段长度 + 它在 userSongs 中的下标
+	const pi = basePlaylist.length + ui
+
+	// 1. 删物理文件
+	deleteAudioFile(audioUrl)
+
+	// 2. 若正在播放被删曲，先停
+	if (state.currentSongIndex == pi && audio != null) {
+		audio!.stop()
+		state.isPlaying = false
+		state.progress = 0
+		state.duration = 0
+		loadedSongIndex = -1
+	}
+
+	// 3. 从 userSongs 移除并重建 playlist
+	const arr = userSongs.value.slice()
+	arr.splice(ui, 1)
+	userSongs.value = arr
+	saveUserSongs()
+
+	// 4. 修正统计索引（按 playlist 下标存储，删中间项需整体重映射，不能简单 append/clamp）
+	const s = playerStats.value
+	if (pi >= 0 && pi < s.songPlayCount.length) s.songPlayCount.splice(pi, 1)
+	const remapped : number[] = [] as number[]
+	s.uniqueSongs.forEach((idx : number) => {
+		if (idx == pi) return                       // 被删曲：丢弃
+		remapped.push(idx > pi ? idx - 1 : idx)     // 其后的曲：下标 -1
+	})
+	s.uniqueSongs = remapped
+	playerStats.value = s
+	markStatsDirty()
+
+	// 5. 修正当前播放下标 / 已加载下标
+	if (state.currentSongIndex > pi) {
+		state.currentSongIndex = state.currentSongIndex - 1
+		if (loadedSongIndex > pi) loadedSongIndex = loadedSongIndex - 1
+	} else if (state.currentSongIndex == pi) {
+		if (state.currentSongIndex >= playlist.value.length) {
+			state.currentSongIndex = playlist.value.length > 0 ? playlist.value.length - 1 : 0
+		}
+		loadedSongIndex = -1
+	}
+	saveNum(K.SONG_INDEX, state.currentSongIndex)
+	uni.showToast({ title: '已删除', icon: 'none' })
+	return true
+}
+
+/** 重命名一首上传歌曲（仅改标题，不影响下标/文件） */
+export function renameUserSong(audioUrl : string, newTitle : string) : boolean {
+	const t = normalizeUserSongTitle(newTitle)
+	if (t == '') {
+		uni.showToast({ title: '名字不能为空', icon: 'none' })
+		return false
+	}
+	let found = false
+	const arr = userSongs.value.map((song : Song) : Song => {
+		if (song.audioUrl != audioUrl) return song
+		found = true
+		return {
+			title: t,
+			artist: song.artist,
+			cover: song.cover,
+			fallbackImage: song.fallbackImage,
+			audioUrl: song.audioUrl,
+			moodId: song.moodId,
+			lyrics: song.lyrics,
+			lyricTimes: song.lyricTimes,
+			duration: song.duration
+		}
+	})
+	if (!found) return false
+	userSongs.value = arr
+	saveUserSongs()
+	uni.showToast({ title: '已重命名', icon: 'none' })
+	return true
 }
 
 export function nextSong() {
-	if (playlist.length == 0) {
+	if (playlist.value.length == 0) {
 		state.isPlaying = false
 		state.audioLoading = false
 		state.audioErrorMessage = '暂无可播放歌曲'
 		uni.showToast({ title: state.audioErrorMessage, icon: 'none' })
 		return
 	}
-	state.currentSongIndex = (state.currentSongIndex + 1) % playlist.length
-	saveNum(K.SONG_INDEX, state.currentSongIndex)
-	pushRecent(playlist[state.currentSongIndex].title)
-	loadCurrentSong(true)
+	playSongByResolvedIndex(nextSongIndexForManualAdvance())
 }
 
 export function prevSong() {
-	if (playlist.length == 0) {
+	if (playlist.value.length == 0) {
 		state.isPlaying = false
 		state.audioLoading = false
 		state.audioErrorMessage = '暂无可播放歌曲'
 		uni.showToast({ title: state.audioErrorMessage, icon: 'none' })
 		return
 	}
-	state.currentSongIndex = (state.currentSongIndex - 1 + playlist.length) % playlist.length
+	state.currentSongIndex = (state.currentSongIndex - 1 + playlist.value.length) % playlist.value.length
 	saveNum(K.SONG_INDEX, state.currentSongIndex)
-	pushRecent(playlist[state.currentSongIndex].title)
+	pushRecent(playlist.value[state.currentSongIndex].title)
 	loadCurrentSong(true)
 }
 
-export function setVolume(v : number) {
+export function setAutoPlayNext(enabled : boolean) {
+	state.autoPlayNext = enabled
+	saveStr(K.AUTO_NEXT, enabled ? '1' : '0')
+}
+
+export function setPlayMode(mode : PlayMode) {
+	const next = normalizePlayMode(mode)
+	state.playMode = next
+	saveStr(K.PLAY_MODE, next)
+}
+
+export function setVolume(v : number, persist : boolean = true) {
 	let vv = v
 	if (vv < 0) vv = 0
 	if (vv > 1) vv = 1
 	state.volume = vv
 	if (audio != null) audio!.volume = vv
-	saveNum(K.VOLUME, vv)
+	// 拖拽过程中 persist=false，只改内存/音量；松手时再落盘一次，避免每帧写 storage
+	if (persist) saveNum(K.VOLUME, vv)
 }
 
 /** percent 0-100，立即同步到 audio.currentTime */
@@ -602,6 +1267,7 @@ export function seekTo(percent : number) {
 	if (p < 0) p = 0
 	if (p > 100) p = 100
 	state.progress = p
+	if (state.duration > 0) state.currentTime = (p / 100) * state.duration  // 立即同步歌词位置
 	if (audio != null && state.duration > 0 && currentSong.value.audioUrl != '') {
 		audio!.seek((p / 100) * state.duration)
 	}
@@ -613,6 +1279,7 @@ export function previewSeek(percent : number) {
 	if (p < 0) p = 0
 	if (p > 100) p = 100
 	state.progress = p
+	if (state.duration > 0) state.currentTime = (p / 100) * state.duration
 }
 
 /** 拖拽开始：记录原 isPlaying 并暂停 */
@@ -632,7 +1299,17 @@ export function endSeekDrag() {
 }
 
 export function seekToLyric(index : number) {
-	const total = currentSong.value.lyrics.length
+	const song = currentSong.value
+	const times = song.lyricTimes
+	// 有时间轴：点歌词跳到该行对应秒数
+	if (times.length > 0 && state.duration > 0) {
+		const targetTime = lyricSeekTime(song, index, state.duration)
+		if (targetTime >= 0) {
+			seekTo((targetTime / state.duration) * 100)
+			return
+		}
+	}
+	const total = song.lyrics.length
 	if (total <= 0) return
 	seekTo((index / total) * 100)
 }
@@ -702,7 +1379,7 @@ export function closeBottle() {
 export type AmbientTrack = {
 	id : string,
 	name : string,
-	icon : string,
+	iconName : string,
 	audioUrl : string,
 	on : boolean,
 	volume : number,
@@ -716,21 +1393,39 @@ export type AmbientPrefs = {
 	volume : number
 }
 
+/**
+ * 环境混音真实自然录音，来源：Wikimedia Commons
+ * - wave.ogg   : "Oceanwavescrushing.ogg" Kalundborg Fjord 海浪，CC BY 3.0 (uploader: jeppen)
+ * - cicada.ogg : "Tanna japonensis v01.ogg" 日本蜩（Higurashi）蝉鸣，CC BY 4.0 (uploader: Σ64)
+ * - rain-natural.mp3 : "Bourne woods rain 2020-05-10 0800" 森林雨声实录，CC BY-SA 4.0 (uploader: Robert EA Harvey)。
+ * 替换原先的合成电音 .wav 占位。
+ */
 const defaultAmbients : AmbientTrack[] = [
-	{ id: 'wave',   name: '海浪', icon: '🌊', audioUrl: '/static/audio/wave.wav',   on: false, volume: 0.45, loading: false, error: false },
-	{ id: 'cicada', name: '夏蝉', icon: '☀', audioUrl: '/static/audio/cicada.wav', on: false, volume: 0.35, loading: false, error: false },
-	{ id: 'rain',   name: '微雨', icon: '☂', audioUrl: '/static/audio/rain.wav',   on: false, volume: 0.38, loading: false, error: false }
+	{ id: 'wave',   name: '海浪', iconName: 'wave', audioUrl: '/static/audio/wave.ogg',   on: false, volume: 0.45, loading: false, error: false },
+	{ id: 'cicada', name: '夏蝉', iconName: 'cicada', audioUrl: '/static/audio/cicada.ogg', on: false, volume: 0.35, loading: false, error: false },
+	{ id: 'rain',   name: '微雨', iconName: 'rain', audioUrl: '/static/audio/rain-natural.mp3', on: false, volume: 0.38, loading: false, error: false }
 ]
 
+function loadAmbientPrefsTyped() : AmbientPrefs[] {
+	const raw = loadStr(K.AMBIENTS, '')
+	if (raw == '') return [] as AmbientPrefs[]
+	try {
+		const arr = JSON.parseArray<AmbientPrefs>(raw)
+		return arr == null ? [] as AmbientPrefs[] : arr
+	} catch (e) {
+		return [] as AmbientPrefs[]
+	}
+}
+
 function makeInitialAmbients() : AmbientTrack[] {
-	const saved = loadJson<AmbientPrefs[]>(K.AMBIENTS, [] as AmbientPrefs[])
+	const saved = loadAmbientPrefsTyped()
 	return defaultAmbients.map((track : AmbientTrack) : AmbientTrack => {
 		const pref = saved.find((p : AmbientPrefs) : boolean => p.id == track.id)
 		if (pref == null) return track
 		return {
 			id: track.id,
 			name: track.name,
-			icon: track.icon,
+			iconName: track.iconName,
 			audioUrl: track.audioUrl,
 			on: pref!.on,
 			volume: pref!.volume,
@@ -776,7 +1471,7 @@ function ensureAmbientAudio(track : AmbientTrack) : InnerAudioContext {
 		updateAmbient(track.id, {
 			id: latest!.id,
 			name: latest!.name,
-			icon: latest!.icon,
+			iconName: latest!.iconName,
 			audioUrl: latest!.audioUrl,
 			on: true,
 			volume: latest!.volume,
@@ -790,7 +1485,7 @@ function ensureAmbientAudio(track : AmbientTrack) : InnerAudioContext {
 		updateAmbient(track.id, {
 			id: latest!.id,
 			name: latest!.name,
-			icon: latest!.icon,
+			iconName: latest!.iconName,
 			audioUrl: latest!.audioUrl,
 			on: latest!.on,
 			volume: latest!.volume,
@@ -804,7 +1499,7 @@ function ensureAmbientAudio(track : AmbientTrack) : InnerAudioContext {
 		updateAmbient(track.id, {
 			id: latest!.id,
 			name: latest!.name,
-			icon: latest!.icon,
+			iconName: latest!.iconName,
 			audioUrl: latest!.audioUrl,
 			on: false,
 			volume: latest!.volume,
@@ -831,7 +1526,7 @@ export function toggleAmbient(id : string) {
 	const nextTrack : AmbientTrack = {
 		id: track!.id,
 		name: track!.name,
-		icon: track!.icon,
+		iconName: track!.iconName,
 		audioUrl: track!.audioUrl,
 		on: nextOn,
 		volume: track!.volume,
@@ -848,7 +1543,7 @@ export function toggleAmbient(id : string) {
 		updateAmbient(id, {
 			id: nextTrack.id,
 			name: nextTrack.name,
-			icon: nextTrack.icon,
+			iconName: nextTrack.iconName,
 			audioUrl: nextTrack.audioUrl,
 			on: false,
 			volume: nextTrack.volume,
@@ -868,7 +1563,7 @@ export function setAmbientVolume(id : string, volume : number) {
 	const nextTrack : AmbientTrack = {
 		id: track!.id,
 		name: track!.name,
-		icon: track!.icon,
+		iconName: track!.iconName,
 		audioUrl: track!.audioUrl,
 		on: track!.on,
 		volume: v,

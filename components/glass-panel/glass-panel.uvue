@@ -47,6 +47,10 @@
 		background-color: rgba(255, 255, 255, 0.32);
 		border-color: rgba(255, 255, 255, 0.45);
 	}
+	.v-frosted {
+		background-color: rgba(255, 255, 255, 0.68);
+		border-color: rgba(255, 255, 255, 0.72);
+	}
 	.v-strong {
 		background-color: rgba(255, 255, 255, 0.92);
 		border-color: rgba(255, 255, 255, 0.60);

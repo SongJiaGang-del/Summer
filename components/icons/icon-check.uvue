@@ -1,0 +1,5 @@
+<template><icon-base name="check" :size="size" :color="color" :stroke-width="strokeWidth"></icon-base></template>
+<script setup lang="uts">
+	import IconBase from './icon-base.uvue'
+	defineProps({ size: { type: Number, default: 24 }, color: { type: String, default: '#1B4965' }, strokeWidth: { type: Number, default: 2 } })
+</script>

@@ -2,7 +2,14 @@
 	<view class="stat" :style="entryStyle">
 		<glass-panel rounded="r-md" variant="soft" pad="p-md">
 			<view class="head">
-				<text class="icon" :style="'color:' + color">{{ icon }}</text>
+				<view class="icon">
+					<icon-wave v-if="iconName == 'wave'" :size="19" :color="color"></icon-wave>
+					<icon-music-note v-else-if="iconName == 'music-note'" :size="19" :color="color"></icon-music-note>
+					<icon-duration v-else-if="iconName == 'duration'" :size="19" :color="color"></icon-duration>
+					<icon-song-list v-else-if="iconName == 'song-list'" :size="19" :color="color"></icon-song-list>
+					<icon-sparkle v-else-if="iconName == 'sparkle'" :size="19" :color="color"></icon-sparkle>
+					<icon-island v-else :size="19" :color="color"></icon-island>
+				</view>
 				<text class="label">{{ label }}</text>
 			</view>
 			<view class="value-row">
@@ -17,12 +24,18 @@
 	import { ref, computed, onMounted } from 'vue'
 	import { tweenRef } from '@/composables/use-anim.uts'
 	import { Ease } from '@/utils/ease.uts'
+	import IconWave from '@/components/icons/icon-wave.uvue'
+	import IconMusicNote from '@/components/icons/icon-music-note.uvue'
+	import IconDuration from '@/components/icons/icon-duration.uvue'
+	import IconSongList from '@/components/icons/icon-song-list.uvue'
+	import IconSparkle from '@/components/icons/icon-sparkle.uvue'
+	import IconIsland from '@/components/icons/icon-island.uvue'
 
 	const props = defineProps({
 		label: { type: String, required: true },
 		val: { type: String, required: true },
 		unit: { type: String, default: '' },
-		icon: { type: String, default: '' },
+		iconName: { type: String, default: 'wave' },
 		color: { type: String, default: '#1B4965' },
 		delay: { type: Number, default: 0 }
 	})
@@ -56,7 +69,10 @@
 		margin-bottom: 8px;
 	}
 	.icon {
-		font-size: 18px;
+		width: 20px;
+		height: 20px;
+		align-items: center;
+		justify-content: center;
 		margin-right: 8px;
 	}
 	.label {

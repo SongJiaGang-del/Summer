@@ -6,10 +6,12 @@
 		</view>
 		<view class="right">
 			<view class="mixer-btn" @click="$emit('mixer')">
-				<text class="mixer-icon">≡</text>
+				<icon-bell-off :size="19" color="#1B4965"></icon-bell-off>
 			</view>
 			<view class="mood-pill">
-				<text class="mood-emoji">{{ moodEmoji }}</text>
+				<icon-wave v-if="moodIconName == 'wave'" :size="20" color="#1B4965"></icon-wave>
+				<icon-strawberry v-else-if="moodIconName == 'strawberry'" :size="20" color="#1B4965"></icon-strawberry>
+				<icon-mint v-else :size="20" color="#1B4965"></icon-mint>
 			</view>
 		</view>
 	</view>
@@ -17,10 +19,14 @@
 
 <script setup lang="uts">
 	import { computed } from 'vue'
+	import IconWave from '@/components/icons/icon-wave.uvue'
+	import IconStrawberry from '@/components/icons/icon-strawberry.uvue'
+	import IconMint from '@/components/icons/icon-mint.uvue'
+	import IconBellOff from '@/components/icons/icon-bell-off.uvue'
 
 	const props = defineProps({
 		title: { type: String, default: '夏日律动' },
-		moodEmoji: { type: String, default: '🌊' },
+		moodIconName: { type: String, default: 'wave' },
 		moodId: { type: String, default: 'sea-salt' }
 	})
 	defineEmits(['mixer'])
@@ -72,11 +78,6 @@
 		justify-content: center;
 		margin-right: 10px;
 	}
-	.mixer-icon {
-		font-size: 16px;
-		color: #1B4965;
-		font-weight: bold;
-	}
 	.mood-pill {
 		width: 40px;
 		height: 40px;
@@ -86,8 +87,5 @@
 		border-color: rgba(255, 255, 255, 0.4);
 		align-items: center;
 		justify-content: center;
-	}
-	.mood-emoji {
-		font-size: 18px;
 	}
 </style>

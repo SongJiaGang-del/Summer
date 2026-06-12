@@ -8,6 +8,12 @@
 			</view>
 			<view class="hole"></view>
 		</view>
+		<!-- 缓冲指示：放在 wrap 层（不随唱片旋转），加载/卡顿时三点呼吸 -->
+		<view v-if="buffering" class="buffering">
+			<view class="buf-dot" :style="bufDot1Style"></view>
+			<view class="buf-dot" :style="bufDot2Style"></view>
+			<view class="buf-dot" :style="bufDot3Style"></view>
+		</view>
 		<!-- 唱针：暂停时抬起 -->
 		<view class="tonearm" :style="tonearmStyle">
 			<view class="tonearm-base"></view>
@@ -21,13 +27,15 @@
 	import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 	import { tweenRef } from '@/composables/use-anim.uts'
 	import { Ease } from '@/utils/ease.uts'
+	import { onFrame, offFrame } from '@/utils/ticker.uts'
 	import { tapHaptic } from '@/utils/haptic.uts'
 
 	const props = defineProps({
 		cover: { type: String, required: true },
 		fallbackImage: { type: String, default: '' },
 		playing: { type: Boolean, default: false },
-		progress: { type: Number, default: 0 }
+		progress: { type: Number, default: 0 },
+		buffering: { type: Boolean, default: false }
 	})
 	const emit = defineEmits(['toggle'])
 
@@ -57,23 +65,23 @@
 	)
 	const coverStyle = computed<string>(() : string => 'opacity:' + coverOpacity.value)
 
-	/* JS 驱动旋转：speed 通过 tween 在 0~1 变化，速度倍率叠加 */
-	const DEG_PER_FRAME = 360 / (20000 / 16) // 360°/20s
-	let spinTimer : number = 0
+	/* JS 驱动旋转：360°/20s，按真实 dt 累加，speed 倍率叠加。接入中心 ticker。 */
+	const DEG_PER_MS = 360 / 20000
+	let spinFrameId : number = 0
 	function stopSpin() {
-		if (spinTimer == 0) return
-		clearInterval(spinTimer)
-		spinTimer = 0
+		if (spinFrameId == 0) return
+		offFrame(spinFrameId)
+		spinFrameId = 0
 	}
 	function startSpin() {
-		if (spinTimer != 0) return
-		spinTimer = setInterval(() => {
+		if (spinFrameId != 0) return
+		spinFrameId = onFrame((dt : number) => {
 			if (speed.value <= 0.001 && !props.playing) {
 				stopSpin()
 				return
 			}
-			discRotation.value = (discRotation.value + DEG_PER_FRAME * speed.value) % 360
-		}, 16) as number
+			discRotation.value = (discRotation.value + DEG_PER_MS * dt * speed.value) % 360
+		})
 	}
 
 	/* 唱针随播放/暂停升降 */
@@ -121,16 +129,48 @@
 		})
 	})
 
+	/* 缓冲三点呼吸：单 timer 推进相位，3 点各错 1/3 周期 */
+	const bufPhase = ref(0)
+	let bufFrameId : number = 0
+	function dotOpacity(offset : number) : number {
+		// sin 波 0.25~1
+		const v = Math.sin((bufPhase.value + offset) * Math.PI * 2)
+		return 0.25 + (v * 0.5 + 0.5) * 0.75
+	}
+	const bufDot1Style = computed<string>(() : string => 'opacity:' + dotOpacity(0))
+	const bufDot2Style = computed<string>(() : string => 'opacity:' + dotOpacity(0.33))
+	const bufDot3Style = computed<string>(() : string => 'opacity:' + dotOpacity(0.66))
+
+	function stopBuf() {
+		if (bufFrameId == 0) return
+		offFrame(bufFrameId)
+		bufFrameId = 0
+	}
+	function startBuf() {
+		if (bufFrameId != 0) return
+		// 一周期约 1s（原 0.04/40ms = 1.0/1000ms），按 dt 推进
+		bufFrameId = onFrame((dt : number) => {
+			bufPhase.value = (bufPhase.value + dt / 1000) % 1
+		})
+	}
+	watch(() : boolean => props.buffering, (v : boolean) => {
+		if (v) startBuf()
+		else stopBuf()
+	})
+
 	onMounted(() => {
 		if (props.playing) startSpin()
+		if (props.buffering) startBuf()
 	})
 	onUnmounted(() => {
 		stopSpin()
+		stopBuf()
 	})
 
 	function onTap() {
 		tweenRef(pressScale, 0.94, { duration: 110, ease: Ease.outQuart, onComplete: () => {
-			tweenRef(pressScale, 1, { duration: 320, ease: Ease.outBack, onComplete: null })
+			// 弹簧回弹：按下松开后有"有重量"的回弹手感
+			tweenRef(pressScale, 1, { duration: 520, ease: Ease.spring, onComplete: null })
 		} })
 		tapHaptic()
 		emit('toggle')
@@ -139,8 +179,8 @@
 
 <style>
 	.wrap {
-		width: 480rpx;
-		height: 480rpx;
+		width: 420rpx;
+		height: 420rpx;
 		align-items: center;
 		justify-content: center;
 		position: relative;
@@ -152,16 +192,40 @@
 		border-style: solid;
 		border-color: rgba(255, 255, 255, 0.18);
 	}
+	.buffering {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		margin-left: -39px;
+		margin-top: -17px;
+		flex-direction: row;
+		align-items: center;
+		justify-content: center;
+		padding-left: 20px;
+		padding-right: 20px;
+		padding-top: 10px;
+		padding-bottom: 10px;
+		border-radius: 999px;
+		background-color: rgba(27, 73, 101, 0.55);
+	}
+	.buf-dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 999px;
+		background-color: #ffffff;
+		margin-left: 4px;
+		margin-right: 4px;
+	}
 	.ring-outer {
-		left: -56rpx; right: -56rpx; top: -56rpx; bottom: -56rpx;
+		left: -49rpx; right: -49rpx; top: -49rpx; bottom: -49rpx;
 	}
 	.ring-inner {
-		left: -20rpx; right: -20rpx; top: -20rpx; bottom: -20rpx;
+		left: -18rpx; right: -18rpx; top: -18rpx; bottom: -18rpx;
 		border-color: rgba(255, 255, 255, 0.4);
 	}
 	.disc {
-		width: 480rpx;
-		height: 480rpx;
+		width: 420rpx;
+		height: 420rpx;
 		border-radius: 50%;
 		border-width: 8px;
 		border-color: rgba(255, 255, 255, 0.55);
@@ -173,8 +237,8 @@
 	.cover-box { width: 100%; height: 100%; }
 	.hole {
 		position: absolute;
-		width: 52rpx;
-		height: 52rpx;
+		width: 46rpx;
+		height: 46rpx;
 		border-radius: 50%;
 		background-color: #E0F7FA;
 		border-width: 4px;
@@ -183,27 +247,27 @@
 	/* 唱针：右上方为旋转中心（base），针沿对角线伸到唱片表面 */
 	.tonearm {
 		position: absolute;
-		top: -20rpx;
-		right: -20rpx;
-		width: 180rpx;
-		height: 180rpx;
+		top: -18rpx;
+		right: -18rpx;
+		width: 158rpx;
+		height: 158rpx;
 		transform-origin: 100% 0%;
 	}
 	.tonearm-base {
 		position: absolute;
 		top: 0;
 		right: 0;
-		width: 32rpx;
-		height: 32rpx;
+		width: 28rpx;
+		height: 28rpx;
 		border-radius: 50%;
 		background-color: #1B4965;
 	}
 	.tonearm-stick {
 		position: absolute;
-		top: 16rpx;
-		right: 16rpx;
-		width: 156rpx;
-		height: 10rpx;
+		top: 14rpx;
+		right: 14rpx;
+		width: 137rpx;
+		height: 9rpx;
 		border-radius: 3px;
 		background-color: #1B4965;
 		transform: rotate(45deg);
@@ -211,10 +275,10 @@
 	}
 	.tonearm-head {
 		position: absolute;
-		bottom: 8rpx;
-		left: 8rpx;
-		width: 28rpx;
-		height: 28rpx;
+		bottom: 7rpx;
+		left: 7rpx;
+		width: 25rpx;
+		height: 25rpx;
 		border-radius: 4px;
 		background-color: #1B4965;
 	}
