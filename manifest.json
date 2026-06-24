@@ -3,7 +3,7 @@
 	"appid": "__UNI__82A7060",
 	"description": "",
 	"versionName": "1.0.0",
-	"versionCode": "100",
+	"versionCode": "1000",
 	"uni-app-x": {},
 	/* 快应用特有相关 */
 	"quickapp": {},
@@ -44,16 +44,16 @@
 		"distribute": {
 			"modules": {},
 			"icons": {
-				"hdpi": "E:/s/Download/清爽版应用图标.png",
-				"xhdpi": "E:/s/Download/清爽版应用图标.png",
-				"xxhdpi": "E:/s/Download/清爽版应用图标.png",
-				"xxxhdpi": "E:/s/Download/清爽版应用图标.png"
+				"hdpi": "E:/s/Desktop/Summer/图标以及启动图片/夏日律动图标.png",
+				"xhdpi": "E:/s/Desktop/Summer/图标以及启动图片/夏日律动图标.png",
+				"xxhdpi": "E:/s/Desktop/Summer/图标以及启动图片/夏日律动图标.png",
+				"xxxhdpi": "E:/s/Desktop/Summer/图标以及启动图片/夏日律动图标.png"
 			},
 			"splashScreens": {
 				"default": {
-					"xhdpi": "E:/s/Download/清爽版启动图片.png",
-					"xxhdpi": "E:/s/Download/清爽版启动图片.png",
-					"xxxhdpi": "E:/s/Download/清爽版启动图片.png"
+					"xhdpi": "",
+					"xxhdpi": "",
+					"xxxhdpi": ""
 				}
 			}
 		}

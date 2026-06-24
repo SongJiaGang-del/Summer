@@ -8,7 +8,7 @@
 			<view class="mixer-btn" @click="$emit('mixer')">
 				<icon-bell-off :size="19" color="#1B4965"></icon-bell-off>
 			</view>
-			<view class="mood-pill">
+			<view class="mood-pill" @click="$emit('mood')">
 				<icon-wave v-if="moodIconName == 'wave'" :size="20" color="#1B4965"></icon-wave>
 				<icon-strawberry v-else-if="moodIconName == 'strawberry'" :size="20" color="#1B4965"></icon-strawberry>
 				<icon-mint v-else :size="20" color="#1B4965"></icon-mint>
@@ -29,7 +29,7 @@
 		moodIconName: { type: String, default: 'wave' },
 		moodId: { type: String, default: 'sea-salt' }
 	})
-	defineEmits(['mixer'])
+	defineEmits(['mixer', 'mood'])
 
 	const greeting = computed<string>(() : string => {
 		if (props.moodId == 'strawberry') return '日落正在靠近'

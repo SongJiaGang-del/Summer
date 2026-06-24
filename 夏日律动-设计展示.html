@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>夏日律动 · 设计展示长图</title>
+<style>
+  :root{
+    --deep:#1B4965;        /* 深海蓝 主色 */
+    --deep-a55:rgba(27,73,101,.55);
+    --deep-a12:rgba(27,73,101,.12);
+    --minty:#AEEFF0;       /* 薄荷 */
+    --minty-bg:#E0F7FA;    /* 薄荷底 */
+    --coral:#FF8577;       /* 珊瑚 */
+    --lemon:#FFF275;       /* 柠檬黄 */
+    --page-top:#EAF7EF;    /* 页面渐变 上 */
+    --page-bot:#DCEFF0;    /* 页面渐变 下 */
+    --card:rgba(255,255,255,.72);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    background:#cfe3df;
+    font-family:"Microsoft YaHei","微软雅黑",sans-serif;
+    color:var(--deep);
+    -webkit-font-smoothing:antialiased;
+  }
+  /* 毛笔/手写风标题：全用 Windows 自带字体，离线可截图 */
+  .brush{font-family:"STXingkai","华文行楷","KaiTi","楷体",serif;}
+
+  /* ===== 长图主体：固定宽度，便于截图导出 ===== */
+  .poster{
+    width:1100px;margin:0 auto;position:relative;overflow:hidden;
+    background:linear-gradient(180deg,var(--page-top) 0%,var(--page-bot) 100%);
+  }
+  /* 背景装饰 blob */
+  .blob{position:absolute;border-radius:50%;filter:blur(2px);z-index:0;opacity:.55;}
+  .b1{width:520px;height:520px;background:var(--minty);top:-160px;right:-120px;}
+  .b2{width:420px;height:420px;background:var(--coral);opacity:.18;top:1150px;left:-160px;}
+  .b3{width:600px;height:600px;background:var(--minty);opacity:.4;top:2750px;right:-220px;}
+  .b4{width:480px;height:480px;background:var(--deep);opacity:.10;top:3650px;left:-180px;}
+
+  section{position:relative;z-index:1;padding:0 90px;}
+
+  /* ===== 1. 封面 ===== */
+  .cover{padding-top:90px;padding-bottom:70px;display:flex;align-items:flex-start;gap:40px;}
+  .cover-text{flex:1;padding-top:30px;}
+  .logo-row{display:flex;align-items:center;gap:16px;margin-bottom:34px;}
+  .logo-row img{width:62px;height:62px;border-radius:16px;box-shadow:0 8px 20px rgba(27,73,101,.18);}
+  .logo-row span{font-size:18px;letter-spacing:4px;color:var(--deep-a55);}
+  .sub{font-size:22px;letter-spacing:6px;color:var(--deep-a55);margin-bottom:6px;}
+  .title{font-size:120px;line-height:1.05;letter-spacing:6px;color:var(--deep);margin-bottom:24px;}
+  .positioning{font-size:24px;letter-spacing:2px;color:var(--coral);margin-bottom:28px;font-weight:bold;}
+  .intro{font-size:17px;line-height:2.1;color:var(--deep-a55);max-width:520px;}
+  .phone{
+    position:relative;
+    border-radius:42px;overflow:hidden;
+    border:8px solid #fff;
+    box-shadow:0 40px 80px -20px rgba(27,73,101,.45);
+    background:#fff;
+    aspect-ratio:1080 / 2400;   /* 手机截图比例：放图前撑出白底框 */
+  }
+  .cover .phone{width:300px;flex:none;}
+  .phone img{
+    position:absolute;inset:0;display:block;
+    width:100%;height:100%;object-fit:cover;z-index:2;
+  }
+  /* 占位提示：放入图片后被图片盖住，未放图时显示 */
+  .ph-label{
+    position:absolute;inset:0;z-index:1;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:10px;color:var(--deep-a55);text-align:center;padding:20px;
+    border:2px dashed rgba(27,73,101,.25);border-radius:34px;margin:10px;
+  }
+  .ph-label .ico{font-size:46px;opacity:.5;}
+  .ph-label .fn{font-size:15px;font-weight:bold;color:var(--deep);letter-spacing:1px;}
+  .ph-label .hint{font-size:12px;opacity:.8;}
+
+  /* ===== 通用区块标题 ===== */
+  .sec-head{display:flex;align-items:baseline;gap:18px;margin:70px 0 40px;}
+  .sec-no{font-size:30px;color:var(--coral);font-weight:bold;}
+  .sec-title{font-size:40px;letter-spacing:4px;color:var(--deep);}
+  .sec-en{font-size:14px;letter-spacing:3px;color:var(--deep-a55);text-transform:uppercase;}
+
+  /* ===== 2. 设计语言 ===== */
+  .palette{display:flex;gap:26px;margin-bottom:40px;}
+  .sw{flex:1;}
+  .sw .chip{height:120px;border-radius:24px;box-shadow:0 12px 24px -10px rgba(27,73,101,.3);}
+  .sw .hex{margin-top:14px;font-size:16px;font-weight:bold;}
+  .sw .nm{font-size:13px;color:var(--deep-a55);margin-top:2px;}
+  .meta-row{display:flex;gap:26px;}
+  .meta{flex:1;background:var(--card);border-radius:28px;padding:28px 32px;
+    box-shadow:0 12px 30px -16px rgba(27,73,101,.25);}
+  .meta h4{font-size:20px;margin-bottom:12px;letter-spacing:2px;}
+  .meta p{font-size:15px;line-height:1.9;color:var(--deep-a55);}
+  .tag{display:inline-block;background:var(--deep);color:#fff;font-size:13px;
+    padding:6px 16px;border-radius:999px;margin:6px 8px 0 0;letter-spacing:1px;}
+
+  /* ===== 3. 核心界面 ===== */
+  .screens{display:flex;gap:46px;justify-content:center;align-items:flex-start;}
+  .screen{flex:1;text-align:center;}
+  .screen .phone{width:100%;margin-bottom:22px;}
+  .screen .cap{font-size:26px;letter-spacing:2px;margin-bottom:8px;}
+  .screen .desc{font-size:14px;line-height:1.9;color:var(--deep-a55);padding:0 6px;}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--coral);margin-right:8px;vertical-align:middle;}
+
+  /* ===== 4. 特色功能 ===== */
+  .features{display:flex;flex-wrap:wrap;gap:26px;}
+  .feat{width:calc(50% - 13px);background:var(--card);border-radius:28px;padding:30px 34px;
+    box-shadow:0 12px 30px -16px rgba(27,73,101,.25);}
+  .feat .ft{font-size:22px;letter-spacing:2px;margin-bottom:10px;}
+  .feat .fd{font-size:15px;line-height:1.9;color:var(--deep-a55);}
+  .feat .em{color:var(--coral);font-weight:bold;}
+
+  /* ===== 5. 致谢 ===== */
+  .thanks{margin-top:90px;background:var(--deep);color:#fff;text-align:center;
+    padding:90px 0 80px;}
+  .thanks .t{font-size:80px;letter-spacing:10px;margin-bottom:18px;color:#fff;}
+  .thanks .s{font-size:18px;letter-spacing:6px;color:var(--minty);}
+  .thanks .id{margin-top:30px;font-size:18px;letter-spacing:4px;color:rgba(255,255,255,.85);}
+</style>
+</head>
+<body>
+<div class="poster">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+  <div class="blob b4"></div>
+
+  <!-- ============ 1. 封面 ============ -->
+  <section class="cover">
+    <div class="cover-text">
+      <div class="logo-row">
+        <img src="static/logo.png" alt="logo">
+        <span>SUMMER&nbsp;RHYTHM</span>
+      </div>
+      <div class="sub">海 风 陪 你 慢 慢 听</div>
+      <h1 class="title brush">夏日律动</h1>
+      <!-- ↓↓↓ 可改：一句话定位 ↓↓↓ -->
+      <div class="positioning">一座因音乐而生长的夏日小岛</div>
+      <!-- ↓↓↓ 可改：项目简介（草稿，按需修改） ↓↓↓ -->
+      <p class="intro">
+        夏日律动是一款以「夏天」为情绪主线的沉浸式音乐播放器。
+        它把日常听歌变成一座会成长的小岛——依据你的收听习惯生成专属
+        「音乐画像」与「夏日报告」，再以场景传送门、漂流瓶、自定义上传等方式，
+        让每一首歌都带着海风的温度。基于 uni-app x (uvue) 开发，编译为原生安卓应用。
+      </p>
+    </div>
+    <div class="phone">
+      <div class="ph-label"><span class="ico">🖼️</span><span class="fn">play.png</span><span class="hint">放入「律动·播放页」截图</span></div>
+      <img src="static/showcase/play.png" alt="播放页" onerror="this.style.display='none'">
+    </div>
+  </section>
+
+  <!-- ============ 2. 设计语言 ============ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-no">01</span>
+      <span class="sec-title brush">设计语言</span>
+      <span class="sec-en">Color &amp; Font</span>
+    </div>
+    <div class="palette">
+      <div class="sw"><div class="chip" style="background:#1B4965"></div><div class="hex">#1B4965</div><div class="nm">深海蓝 · 主色</div></div>
+      <div class="sw"><div class="chip" style="background:#AEEFF0"></div><div class="hex">#AEEFF0</div><div class="nm">薄荷</div></div>
+      <div class="sw"><div class="chip" style="background:#E0F7FA"></div><div class="hex">#E0F7FA</div><div class="nm">薄荷底</div></div>
+      <div class="sw"><div class="chip" style="background:#FF8577"></div><div class="hex">#FF8577</div><div class="nm">珊瑚</div></div>
+      <div class="sw"><div class="chip" style="background:#FFF275"></div><div class="hex">#FFF275</div><div class="nm">柠檬黄</div></div>
+    </div>
+    <div class="meta-row">
+      <div class="meta">
+        <h4>字体</h4>
+        <p>界面文字统一采用系统默认字体，保证不同机型阅读一致；
+        演示设备渲染为手写风系统字体，更贴合夏日轻松的气质。</p>
+      </div>
+      <div class="meta">
+        <h4>视觉风格</h4>
+        <p>玻璃拟态（半透明卡片 + 柔和投影）+ 大圆角，搭配薄荷绿背景与深海蓝点缀，营造清爽通透的夏日海岛氛围。</p>
+        <span class="tag">玻璃拟态</span><span class="tag">大圆角</span><span class="tag">uni-app x</span><span class="tag">原生安卓</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3. 核心界面 ============ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-no">02</span>
+      <span class="sec-title brush">核心界面</span>
+      <span class="sec-en">Main Screens</span>
+    </div>
+    <div class="screens">
+      <div class="screen">
+        <div class="phone">
+          <div class="ph-label"><span class="ico">🖼️</span><span class="fn">play.png</span><span class="hint">律动·播放页</span></div>
+          <img src="static/showcase/play.png" alt="律动" onerror="this.style.display='none'">
+        </div>
+        <div class="cap brush">律动 · 播放</div>
+        <div class="desc">黑胶唱片随歌转动，进度、歌词与心情滤镜一屏掌控，沉浸式聆听体验。</div>
+      </div>
+      <div class="screen">
+        <div class="phone">
+          <div class="ph-label"><span class="ico">🖼️</span><span class="fn">discover.png</span><span class="hint">发现·传送门页</span></div>
+          <img src="static/showcase/discover.png" alt="发现" onerror="this.style.display='none'">
+        </div>
+        <div class="cap brush">发现 · 传送门</div>
+        <div class="desc">场景传送门、漂流瓶留言、本地上传与「为你漂来的歌」推荐，发现更多夏日旋律。</div>
+      </div>
+      <div class="screen">
+        <div class="phone">
+          <div class="ph-label"><span class="ico">🖼️</span><span class="fn">island.png</span><span class="hint">小岛·个人中心页</span></div>
+          <img src="static/showcase/island.png" alt="小岛" onerror="this.style.display='none'">
+        </div>
+        <div class="cap brush">小岛 · 我的</div>
+        <div class="desc">听歌数据汇聚成成长小岛，生成音乐画像、夏日精神动物与专属夏日报告。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4. 特色功能 ============ -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-no">03</span>
+      <span class="sec-title brush">特色功能</span>
+      <span class="sec-en">Features</span>
+    </div>
+    <div class="features">
+      <div class="feat"><div class="ft brush">🎨 音乐画像</div><div class="fd">根据收听偏好量化出<span class="em">海风流行 / 日落朦胧 / 薄荷电子</span>等风格占比，描绘你的专属听歌人格。</div></div>
+      <div class="feat"><div class="ft brush">🐳 夏日报告</div><div class="fd">汇总播放时长、单曲循环 Top3 与最爱时段，生成<span class="em">「夏日精神动物」</span>等可分享报告。</div></div>
+      <div class="feat"><div class="ft brush">🚪 场景传送门</div><div class="fd">以「凌晨三点的便利店」等情境歌单，<span class="em">一键切换氛围</span>，让音乐贴合此刻心境。</div></div>
+      <div class="feat"><div class="ft brush">🍾 漂流瓶</div><div class="fd">把一句话连同歌曲投进海里，也能<span class="em">捞起陌生人的夏日留言</span>，让听歌有了温度。</div></div>
+      <div class="feat"><div class="ft brush">⬆️ 自定义上传</div><div class="fd">支持 <span class="em">MP3 / WAV / M4A / AAC</span> 本地导入，打造完全属于自己的夏日歌单。</div></div>
+      <div class="feat"><div class="ft brush">🏝️ 成长小岛</div><div class="fd">听得越多，小岛<span class="em">能量等级</span>越高，把听歌坚持变成看得见的陪伴。</div></div>
+    </div>
+  </section>
+
+  <!-- ============ 5. 致谢 ============ -->
+  <section style="padding:0;">
+    <div class="thanks">
+      <div class="t brush">谢谢观看</div>
+      <div class="s">THANKS FOR WATCHING</div>
+      <!-- ↓↓↓ 改成你的学号 + 姓名 ↓↓↓ -->
+      <div class="id">学号 000000000　|　姓名 XXX</div>
+    </div>
+  </section>
+</div>
+</body>
+</html>

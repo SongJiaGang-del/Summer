@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>夏日律动 - 沉浸式交互旗舰版</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .lens-flare {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 70%);
+            pointer-events: none;
+            z-index: 5;
+            filter: blur(80px);
+            mix-blend-mode: screen;
+        }
+
+        .vinyl-container { perspective: 1200px; position: relative; transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        .vinyl-float {
+            animation: rotate 20s linear infinite;
+            box-shadow: 0 40px 80px -15px rgba(0, 0, 0, 0.3);
+        }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(35px);
+            -webkit-backdrop-filter: blur(35px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .lyric-mask {
+            mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+            -webkit-mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+        }
+
+        .app-viewport { height: 100%; width: 100%; overflow: hidden; }
+        .page-container { height: 100%; width: 100%; display: flex; flex-direction: column; will-change: transform; }
+        .section-page { height: 100%; width: 100%; flex-shrink: 0; position: relative; }
+
+        .visualizer-ring {
+            position: absolute;
+            inset: -25px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,0.08);
+            pointer-events: none;
+        }
+
+        .ice-btn { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .ice-btn:active { transform: scale(0.85); }
+
+        .pop-effect {
+            position: fixed;
+            pointer-events: none;
+            border: 1px solid rgba(255,255,255,0.5);
+            border-radius: 50%;
+            z-index: 99;
+        }
+
+        .bubble-tag { animation: floating-tag 6s ease-in-out infinite; }
+        @keyframes floating-tag {
+            0%, 100% { transform: translate(0, 0); }
+            33% { transform: translate(10px, -15px); }
+            66% { transform: translate(-10px, 15px); }
+        }
+
+        * { -ms-overflow-style: none; scrollbar-width: none; }
+        ::-webkit-scrollbar { display: none; }
+        
+        .lyric-line { cursor: pointer; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; }
+        
+        .mode-transition { transition: all 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+    <div id="lens-flare" class="lens-flare"></div>
+
+    <div id="app" class="h-full w-full flex flex-col select-none relative z-10" @mousemove="onMouseMove" @mousedown="handleInteraction">
+        
+        <!-- 顶部状态栏 -->
+        <header id="app-header" class="fixed top-0 left-0 w-full p-6 flex justify-between items-center z-50 mode-transition"
+                :class="{'opacity-0 -translate-y-10 pointer-events-none': isFocusMode}">
+            <div class="flex flex-col">
+                <span class="text-[10px] text-blue-900/40 font-bold uppercase tracking-[0.4em]">{{ timeGreeting }}</span>
+                <h1 class="text-2xl font-black text-[#1B4965] tracking-tighter leading-none">{{ currentTitle }}</h1>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button @click="toggleMixer" class="w-10 h-10 rounded-full glass-panel flex items-center justify-center text-[#1B4965] shadow-sm ice-btn">
+                    <i class="fas fa-sliders-h text-xs"></i>
+                </button>
+                <div class="bg-white/20 px-4 py-2 rounded-full border border-white/30 backdrop-blur-md">
+                    <span class="text-[#1B4965] text-xs font-bold tracking-tighter">{{ temperature }}°C</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 漂流瓶查看器 -->
+        <div v-if="activeBottle" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-md p-8" @click.self="activeBottle = null">
+            <div class="glass-panel w-full max-w-sm rounded-[3.5rem] p-10 flex flex-col items-center text-center shadow-2xl animate-pop-in">
+                <div class="text-5xl mb-8">🍾</div>
+                <p class="text-lg font-bold text-[#1B4965] leading-relaxed mb-10 italic">“{{ activeBottle.message }}”</p>
+                <button @click="activeBottle = null" class="w-full py-5 bg-[#1B4965] text-white rounded-full text-xs font-black tracking-widest ice-btn">回归大海</button>
+            </div>
+        </div>
+
+        <!-- 页面视口 -->
+        <div class="app-viewport">
+            <div id="main-scroller" class="page-container">
+                
+                <!-- 页面1: 律动 -->
+                <section class="section-page flex mode-transition relative overflow-hidden" 
+                         :class="isFocusMode ? 'flex-row items-center px-12' : 'flex-col items-center justify-center px-8 pt-10'">
+                    
+                    <button v-if="isFocusMode" @click="isFocusMode = false" 
+                            class="absolute top-10 right-12 z-50 w-12 h-12 rounded-full glass-panel flex items-center justify-center text-[#1B4965] ice-btn">
+                        <i class="fas fa-compress-alt"></i>
+                    </button>
+
+                    <div class="vinyl-container mode-transition flex-shrink-0" 
+                         :class="isFocusMode ? 'w-[35%] scale-75 md:scale-90' : 'w-full mb-12 flex justify-center'"
+                         @dblclick="isFocusMode = !isFocusMode">
+                        <div class="relative" id="vinyl-box">
+                            <div class="visualizer-ring" id="v-ring-1"></div>
+                            <div class="visualizer-ring opacity-40" id="v-ring-2" style="inset: -45px;"></div>
+                            <div class="rounded-full border-white/50 vinyl-float overflow-hidden relative mode-transition shadow-2xl"
+                                 :class="isFocusMode ? 'w-64 h-64 border-[8px]' : 'w-60 h-60 md:w-72 md:h-72 border-[12px]'"
+                                 :style="{ animationPlayState: isPlaying ? 'running' : 'paused' }">
+                                <img :src="currentSong.cover" class="w-full h-full object-cover">
+                            </div>
+                            <div v-if="isFocusMode" class="mt-8 text-center animate-fade-in">
+                                <h2 class="text-xl font-black text-[#1B4965] tracking-tight">{{ currentSong.title }}</h2>
+                                <p class="text-[10px] font-bold text-blue-900/40 uppercase mt-2 tracking-[0.3em]">{{ currentSong.artist }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 歌词容器 -->
+                    <div class="mode-transition flex-1 flex flex-col relative overflow-hidden"
+                         :class="isFocusMode ? 'h-full max-h-[80vh] justify-center' : 'w-full max-w-sm h-32 mb-10 items-start'">
+                        
+                        <div class="lyric-mask w-full h-full relative flex items-start">
+                            <div id="lyric-scroll" class="flex flex-col items-center transition-transform duration-1000 ease-out w-full" 
+                                 :style="{ transform: `translateY(${(isFocusMode ? 250 : 44) - currentLyricIndex * (isFocusMode ? 64 : 40)}px)` }">
+                                <div v-for="(line, index) in currentSong.lyrics" :key="index"
+                                    @click="seekToLyric(index)"
+                                    :class="[
+                                        'flex items-center justify-center text-center transition-all duration-500 w-full px-6 lyric-line',
+                                        isFocusMode ? 'h-16' : 'h-10',
+                                        index === currentLyricIndex ? 'text-[#1B4965] font-black opacity-100' : 'text-blue-900/20 font-bold opacity-30 hover:opacity-60',
+                                        isFocusMode ? (index === currentLyricIndex ? 'text-4xl scale-105' : 'text-xl') : (index === currentLyricIndex ? 'text-xl scale-105' : 'text-sm')
+                                    ]">
+                                    {{ line }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="w-full max-w-xs flex flex-col items-center mode-transition" 
+                         :class="isFocusMode ? 'absolute bottom-10 opacity-0 pointer-events-none' : 'opacity-100'">
+                        <div class="w-full h-2 bg-blue-900/5 rounded-full overflow-hidden mb-10 relative shadow-inner">
+                            <div class="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-300 relative" :style="{ width: progress + '%' }">
+                                <div class="absolute right-0 top-0 bottom-0 w-8 bg-white/40 blur-md"></div>
+                            </div>
+                        </div>
+                        <div class="glass-panel p-4 rounded-full flex space-x-6 shadow-inner">
+                            <button v-for="m in moods" :key="m.id" @click="setMood(m.id)"
+                                :class="['w-10 h-10 rounded-full transition-all shadow-lg ice-btn', mood === m.id ? 'ring-4 ring-white scale-110' : 'opacity-30 grayscale']"
+                                :style="{ backgroundColor: m.colors[0] }">
+                                <i :class="['fas', m.icon, 'text-white text-xs']"></i>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 页面2: 发现 -->
+                <section class="section-page pt-24 pb-48 overflow-y-auto overflow-x-hidden" id="discover-page">
+                    <div class="px-8" id="discover-header">
+                        <div class="glass-panel rounded-full px-5 py-4 mb-8 flex items-center space-x-4 shadow-xl">
+                            <i class="fas fa-search text-[#1B4965]/40 text-sm"></i>
+                            <input type="text" placeholder="寻找你的夏日主打歌..." class="bg-transparent border-none outline-none text-xs text-[#1B4965] placeholder-[#1B4965]/30 w-full font-bold">
+                        </div>
+
+                        <div class="flex items-center justify-between mb-8">
+                            <h2 class="text-[10px] font-black text-[#1B4965]/40 uppercase tracking-[0.5em]">Scene Portals</h2>
+                        </div>
+                    </div>
+                    
+                    <div class="flex space-x-6 overflow-x-auto pb-10 snap-x snap-mandatory scroll-smooth w-full" 
+                         style="padding-left: calc(50% - 104px); padding-right: calc(50% - 104px);" id="discover-cards-container">
+                        <div v-for="(cat, idx) in categories" :key="cat.name" @click="enterPortal(idx)"
+                             class="flex-shrink-0 w-52 h-72 rounded-[4rem] relative overflow-hidden shadow-2xl card-item ice-btn group cursor-pointer snap-center">
+                            <img :src="cat.image" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent flex flex-col justify-end p-8">
+                                <span class="text-white text-sm font-black tracking-[0.3em]">{{ cat.name }}</span>
+                                <p class="text-white/40 text-[9px] font-bold mt-2 uppercase tracking-widest italic">进入传送门</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-6 pb-24 px-8 mt-4" id="album-grid">
+                        <div v-for="song in playlist" :key="song.title" @click="playSong(song)" class="flex flex-col album-item ice-btn">
+                            <div class="aspect-square rounded-[3rem] overflow-hidden mb-4 shadow-xl relative group">
+                                <img :src="song.cover" class="w-full h-full object-cover">
+                                <div class="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center">
+                                    <div class="w-14 h-14 rounded-full bg-white/30 backdrop-blur-lg flex items-center justify-center text-white border border-white/40"><i class="fas fa-play text-sm"></i></div>
+                                </div>
+                            </div>
+                            <span class="text-[11px] font-black text-[#1B4965] truncate text-center uppercase tracking-tighter">{{ song.title }}</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 页面3: 小岛 -->
+                <section class="section-page pt-28 pb-48 px-8 overflow-y-auto overflow-x-hidden" id="island-page">
+                    <div id="island-core-container" class="relative mb-14 w-full flex justify-center">
+                        <div id="island-core" class="w-64 h-64 glass-panel rounded-full flex flex-col items-center justify-center shadow-2xl relative ice-btn cursor-pointer" @click="pulseIsland">
+                            <div class="text-center z-10">
+                                <p class="text-[9px] font-black text-blue-900/40 uppercase tracking-[0.5em] mb-1">Island Energy</p>
+                                <h3 id="island-lv" class="text-6xl font-black text-[#1B4965]">LV.4</h3>
+                            </div>
+                            <div class="absolute -bottom-4 bg-[#1B4965] text-white px-6 py-2 rounded-full text-[10px] font-black tracking-widest shadow-xl">日落追逐者</div>
+                        </div>
+                    </div>
+                    
+                    <div class="w-full grid grid-cols-2 gap-5 mb-10" id="island-stats">
+                        <div v-for="st in stats" :key="st.label" class="glass-panel rounded-[2.5rem] p-6 flex flex-col justify-center shadow-inner stat-card">
+                            <div class="flex items-center space-x-3 mb-2">
+                                <i :class="['fas', st.icon, st.color, 'text-lg']"></i>
+                                <h4 class="text-[10px] font-black text-[#1B4965] uppercase">{{ st.label }}</h4>
+                            </div>
+                            <p class="text-xl font-black text-[#1B4965] tracking-tighter">{{ st.val }} <span class="text-[8px] text-blue-900/30 tracking-widest ml-1">{{ st.unit }}</span></p>
+                        </div>
+                    </div>
+
+                    <div class="w-full mb-10" id="island-dna">
+                        <h2 class="text-[10px] font-black text-[#1B4965]/40 uppercase tracking-[0.4em] mb-5 px-2">Vibe DNA</h2>
+                        <div class="glass-panel p-8 rounded-[3rem] space-y-6">
+                            <div v-for="dna in vibeDnas" :key="dna.name" class="flex items-center">
+                                <span class="w-16 text-[9px] font-black text-[#1B4965] text-right truncate uppercase">{{ dna.name }}</span>
+                                <div class="flex-1 h-3 bg-blue-900/5 rounded-full mx-5 overflow-hidden relative shadow-inner">
+                                    <div :class="['h-full rounded-full transition-all duration-[2000ms]', dna.color]" :style="{ width: dna.percent + '%' }"></div>
+                                </div>
+                                <span class="w-10 text-[9px] font-bold text-blue-900/40">{{ dna.percent }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- 底部全局 UI -->
+        <footer class="fixed bottom-0 left-0 w-full z-50 mode-transition shadow-2xl" :class="{'translate-y-full opacity-0': isFocusMode}">
+            <div id="mini-player" class="mx-6 mb-6 glass-panel rounded-[2.5rem] p-4 flex items-center justify-between shadow-2xl">
+                <div class="flex items-center space-x-4 ml-1">
+                    <button @click="togglePlay" class="w-12 h-12 rounded-full bg-[#1B4965] text-white flex items-center justify-center shadow-lg active:scale-90 transition-transform ice-btn">
+                        <i :class="['fas', isPlaying ? 'fa-pause' : 'fa-play', !isPlaying ? 'ml-1' : '']"></i>
+                    </button>
+                    <div class="flex flex-col">
+                        <h4 class="text-[11px] font-black text-[#1B4965] tracking-tight leading-none">{{ currentSong.title }}</h4>
+                        <p class="text-[8px] font-bold text-blue-900/30 uppercase mt-1">{{ currentSong.artist }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 mr-4 text-[#1B4965]/40">
+                    <button @click="prevSong" class="w-9 h-9 flex items-center justify-center ice-btn"><i class="fas fa-backward-step text-sm"></i></button>
+                    <button @click="nextSong" class="w-9 h-9 flex items-center justify-center ice-btn"><i class="fas fa-forward-step text-sm"></i></button>
+                </div>
+            </div>
+
+            <nav class="px-12 py-7 glass-panel rounded-t-[4rem] border-t-0 shadow-inner flex justify-around">
+                <button v-for="(nav, idx) in navs" :key="nav.id" @click="scrollToPage(idx)" 
+                        :class="['flex flex-col items-center transition-all duration-700', activePageIndex === idx ? 'text-[#1B4965] scale-110' : 'text-[#1B4965]/20']">
+                    <i :class="['fas', nav.icon, 'text-xl']"></i>
+                    <span class="text-[9px] font-black uppercase mt-1.5 tracking-[0.2em]">{{ nav.name }}</span>
+                </button>
+            </nav>
+        </footer>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, reactive, computed, watch } = Vue;
+
+        createApp({
+            setup() {
+                const isPlaying = ref(false), progress = ref(0), temperature = ref(31), mood = ref('sea-salt');
+                const activePageIndex = ref(0), showMixer = ref(false), activeBottle = ref(null), isFocusMode = ref(false);
+
+                const playlist = [
+                    { title: "夏日清风", artist: "意大利苏打", cover: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80", lyrics: ["夏天的风缓缓吹过", "穿过薄荷味的午后", "冰镇苏打在杯中冒泡", "旋律带我潜入深蓝", "享受这一刻清凉", "让忧虑随潮汐远去", "心跳随波浪起伏", "夏天永不落幕", "每一刻都值得珍藏", "在这蔚蓝的季节里"] },
+                    { title: "蔚蓝海岸", artist: "冲浪乐队", cover: "https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=800&q=80", lyrics: ["追逐那抹永恒的蓝", "阳光是金色的外衣", "这一刻不需要终点", "我们都是自由的鱼", "咸咸的海水在指尖", "巨浪正在头顶翻滚"] }
+                ];
+                const moods = [
+                    { id: 'sea-salt', colors: ['#AEEFF0', '#E0F7FA', '#80DEEA'], icon: 'fa-wind' },
+                    { id: 'strawberry', colors: ['#FF8577', '#FFD1BB', '#F06292'], icon: 'fa-ice-cream' },
+                    { id: 'mint', colors: ['#B2F2BB', '#E8F5E9', '#81C784'], icon: 'fa-leaf' }
+                ];
+                const categories = [
+                    { name: '沙滩派对', image: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=500&q=80' },
+                    { name: '雨林漫步', image: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?auto=format&fit=crop&w=500&q=80' },
+                    { name: '日落大道', image: 'https://images.unsplash.com/photo-1499793983690-e29da59ef1c2?auto=format&fit=crop&w=500&q=80' }
+                ];
+
+                const currentSong = ref(playlist[0]);
+                const currentLyricIndex = computed(() => {
+                    const total = currentSong.value.lyrics.length;
+                    return Math.min(Math.floor((progress.value / 100) * total), total - 1);
+                });
+
+                // 核心逻辑补全：播放歌曲
+                const playSong = (song) => {
+                    currentSong.value = song;
+                    progress.value = 0;
+                    isPlaying.value = true;
+                    scrollToPage(0); // 自动跳回播放页
+                };
+
+                const seekToLyric = (index) => {
+                    progress.value = (index / currentSong.value.lyrics.length) * 100;
+                    if(isFocusMode.value) {
+                        gsap.fromTo(".lyric-line", { x: 0 }, { x: 5, duration: 0.1, repeat: 1, yoyo: true });
+                    }
+                };
+
+                const scrollToPage = (idx) => {
+                    activePageIndex.value = idx;
+                    gsap.to("#main-scroller", { yPercent: -100 * idx, duration: 1.4, ease: "power4.inOut", onComplete: () => ScrollTrigger && ScrollTrigger.refresh() });
+                };
+
+                const setMood = (id) => mood.value = id;
+                const togglePlay = () => isPlaying.value = !isPlaying.value;
+                const prevSong = () => { progress.value = 0; };
+                const nextSong = () => { 
+                    const idx = (playlist.indexOf(currentSong.value) + 1) % playlist.length;
+                    currentSong.value = playlist[idx];
+                    progress.value = 0;
+                };
+
+                // 统计数据与画像数据
+                const stats = [
+                    { label: '潜水深度', val: '124', unit: 'METERS', icon: 'fa-water', color: 'text-blue-500' }, 
+                    { label: '心跳频率', val: '856', unit: 'BPM', icon: 'fa-heart', color: 'text-pink-500' }
+                ];
+                const vibeDnas = [
+                    { name: 'SEA POP', percent: 65, color: 'bg-blue-400' }, 
+                    { name: 'MINT ELECTRO', percent: 25, color: 'bg-green-400' }, 
+                    { name: 'SUNSET JAZZ', percent: 10, color: 'bg-orange-400' }
+                ];
+                const badges = [
+                    { id: 1, name: '日落追逐者', icon: 'fa-sun', active: true, color: 'text-orange-500' }, 
+                    { id: 2, name: '深夜潜水员', icon: 'fa-moon', active: true, color: 'text-indigo-500' }, 
+                    { id: 3, name: '海浪捕手', icon: 'fa-water', active: false, color: 'text-gray-400' }
+                ];
+
+                // --- GSAP 背景与滚动 ---
+                gsap.registerPlugin(ScrollTrigger);
+                onMounted(() => {
+                    const canvas = document.getElementById('bg-canvas'); const ctx = canvas.getContext('2d');
+                    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+                    const hexToRgb = (h) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+                    const currentColors = reactive(hexToRgb(moods[0].colors[0]).map(c => c));
+                    const animate = () => {
+                        const target = hexToRgb(moods.find(m => m.id === mood.value).colors[0]);
+                        currentColors.forEach((c, i) => currentColors[i] += (target[i] - c) * 0.05);
+                        ctx.fillStyle = `rgb(${Math.round(currentColors[0])},${Math.round(currentColors[1])},${Math.round(currentColors[2])})`;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        requestAnimationFrame(animate);
+                    };
+                    animate();
+                    
+                    setTimeout(() => {
+                        gsap.to("#discover-header", { scrollTrigger: { trigger: "#discover-page", scroller: "#discover-page", start: "top top", scrub: 1 }, y: 60, opacity: 0.2 });
+                        gsap.from(".stat-card", { scrollTrigger: { trigger: "#island-stats", scroller: "#island-page", start: "top 90%" }, y: 40, opacity: 0, stagger: 0.2 });
+                    }, 100);
+                });
+
+                return {
+                    isPlaying, progress, temperature, mood, moods, currentSong, currentLyricIndex, activePageIndex, showMixer, 
+                    activeBottle, isFocusMode, categories, playlist, stats, vibeDnas, badges,
+                    navs: [{id:'p', name:'律动', icon:'fa-waveform-path'}, {id:'d', name:'发现', icon:'fa-compass'}, {id:'i', name:'小岛', icon:'fa-island-tropical'}],
+                    timeGreeting: "Morning Bliss", currentTitle: computed(() => ['夏日律动', '发现传送门', '音乐画像岛'][activePageIndex.value]),
+                    scrollToPage, togglePlay, setMood, toggleMixer: () => showMixer.value = !showMixer.value,
+                    playSong, prevSong, nextSong, seekToLyric, onMouseMove: (e) => gsap.to("#lens-flare", { x: e.clientX - 300, y: e.clientY - 300, duration: 2 }),
+                    enterPortal: (idx) => { setMood(['sea-salt', 'mint', 'strawberry'][idx % 3]); gsap.fromTo("#bg-canvas", { opacity: 0.3 }, { opacity: 1, duration: 1.2 }); },
+                    pulseIsland: () => gsap.to("#island-core", { scale: 1.05, duration: 0.15, yoyo: true, repeat: 1 }),
+                    handleInteraction: (e) => {
+                        const pop = document.createElement('div'); pop.className = 'pop-effect'; pop.style.left = e.clientX + 'px'; pop.style.top = e.clientY + 'px'; document.body.appendChild(pop);
+                        gsap.fromTo(pop, { width: 0, height: 0, opacity: 0.8 }, { width: 140, height: 140, x: -70, y: -70, opacity: 0, duration: 0.6, onComplete: () => pop.remove() });
+                    }
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

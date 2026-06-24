@@ -4,7 +4,7 @@
 		<view class="status-bar" :style="statusBarStyle"></view>
 
 		<!-- 顶部状态栏 -->
-		<app-header :title="pageTitle" :moodIconName="currentMoodIconName" :moodId="dominantMoodId" @mixer="onMixer"></app-header>
+		<app-header :title="pageTitle" :moodIconName="currentMoodIconName" :moodId="state.moodId" @mixer="onMixer" @mood="onShowMoodModal"></app-header>
 
 		<!-- 页面内容 -->
 		<view class="body" :style="pageStyle">
@@ -52,9 +52,6 @@
 						<view class="track-time-row">
 							<text class="track-time">{{ trackTimeText }}</text>
 						</view>
-					</view>
-					<view class="mood-wrap">
-						<mood-selector :moods="moods" :active="state.moodId" @change="onMoodChange"></mood-selector>
 					</view>
 				</view>
 			</view>
@@ -222,6 +219,29 @@
 		<!-- 白噪音混音器 -->
 		<mixer-drawer v-bind:visible="showMixer" @close="showMixer = false"></mixer-drawer>
 
+		<!-- 主题色选择 -->
+		<view v-if="showMoodModal" class="mood-mask" @click="onHideMoodModal">
+			<view class="mood-sheet" @click.stop="noop">
+				<text class="mood-title">选择主题色</text>
+				<text class="mood-sub">让这一刻的背景、推荐和反馈一起换色</text>
+				<view class="mood-selector-wrap">
+					<mood-selector :moods="moods" :active="state.moodId" @change="onSelectMood"></mood-selector>
+				</view>
+				<view class="mood-options">
+					<view
+						v-for="m in moods"
+						:key="m.id"
+						class="mood-option"
+						:class="{ active: m.id == state.moodId }"
+						@click="onSelectMood(m.id)">
+						<view class="mood-swatch" :style="'background-color:' + m.color"></view>
+						<text class="mood-option-name">{{ moodLabelOf(m.id) }}</text>
+						<icon-check v-if="m.id == state.moodId" :size="15" color="#1B4965"></icon-check>
+					</view>
+				</view>
+			</view>
+		</view>
+
 		<!-- 漂流瓶弹层 -->
 		<bottle-modal
 			v-bind:visible="state.activeBottle != null"
@@ -364,6 +384,7 @@
 	import IconUpload from '@/components/icons/icon-upload.uvue'
 	import IconDisc from '@/components/icons/icon-disc.uvue'
 	import IconSwipeVertical from '@/components/icons/icon-swipe-vertical.uvue'
+	import IconCheck from '@/components/icons/icon-check.uvue'
 
 	/* ───── 双指针：selected 立即响应点击，rendered 经动画后切换 ───── */
 	const selectedIndex = ref(0)
@@ -410,7 +431,6 @@
 	function onTogglePlay() { togglePlay() }
 	function onPrev() { prevSong() }
 	function onNext() { nextSong() }
-	function onMoodChange(id : string) { setMood(id) }
 	function onNavChange(idx : number) { selectedIndex.value = idx }
 	function onSeekLyric(idx : number) { seekToLyric(idx) }
 	function onSeekProgress(p : number) { previewSeek(p) }
@@ -794,6 +814,21 @@
 	function onCloseBottle() { closeBottle() }
 	function onMixer() { toggleMixer() }
 
+	/* ───── 主题色选择 ───── */
+	const showMoodModal = ref(false)
+	function onShowMoodModal() { showMoodModal.value = true }
+	function onHideMoodModal() { showMoodModal.value = false }
+	function onSelectMood(id : string) {
+		setMood(id)
+		showMoodModal.value = false
+		tapHaptic()
+	}
+	function moodLabelOf(id : string) : string {
+		if (id == 'strawberry') return '日落珊瑚'
+		if (id == 'mint') return '薄荷清凉'
+		return '海盐微风'
+	}
+
 	/* ───── 投瓶 ───── */
 	const showBottleComposer = ref(false)
 	const bottleDraft = ref('')
@@ -988,10 +1023,6 @@
 		color: rgba(27, 73, 101, 0.45);
 		letter-spacing: 1px;
 	}
-	.mood-wrap {
-		align-items: center;
-	}
-
 	/* 发现页 */
 	.discover {
 		padding-left: 24px;
@@ -1442,6 +1473,70 @@
 		font-size: 12px;
 		font-weight: bold;
 		letter-spacing: 3px;
+	}
+	.mood-mask {
+		position: fixed;
+		left: 0; right: 0; top: 0; bottom: 0;
+		background-color: rgba(0, 0, 0, 0.38);
+		justify-content: flex-end;
+		z-index: 124;
+	}
+	.mood-sheet {
+		background-color: rgba(255, 255, 255, 0.96);
+		border-top-left-radius: 36px;
+		border-top-right-radius: 36px;
+		padding: 28px;
+		padding-bottom: 42px;
+		align-items: center;
+	}
+	.mood-title {
+		font-size: 18px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 2px;
+	}
+	.mood-sub {
+		font-size: 10px;
+		color: rgba(27, 73, 101, 0.48);
+		margin-top: 8px;
+		margin-bottom: 20px;
+		letter-spacing: 1px;
+	}
+	.mood-selector-wrap {
+		margin-bottom: 18px;
+	}
+	.mood-options {
+		width: 100%;
+	}
+	.mood-option {
+		width: 100%;
+		flex-direction: row;
+		align-items: center;
+		padding: 14px;
+		border-radius: 24px;
+		background-color: rgba(27, 73, 101, 0.06);
+		border-width: 1px;
+		border-color: rgba(27, 73, 101, 0.08);
+		margin-top: 10px;
+	}
+	.mood-option.active {
+		background-color: rgba(174, 239, 240, 0.32);
+		border-color: rgba(27, 73, 101, 0.24);
+	}
+	.mood-swatch {
+		width: 26px;
+		height: 26px;
+		border-radius: 999px;
+		border-width: 2px;
+		border-color: rgba(255, 255, 255, 0.92);
+		margin-right: 12px;
+	}
+	.mood-option-name {
+		flex: 1;
+		font-size: 13px;
+		font-weight: bold;
+		color: #1B4965;
+		letter-spacing: 2px;
 	}
 	.archive-mask {
 		position: fixed;
